@@ -1,0 +1,8 @@
+## TESTING
+
+### Guidelines for UNIT
+
+#### PYTEST
+
+- Use fixtures for test setup and dependency injection
+- Use monkeypatch for mocking dependencies

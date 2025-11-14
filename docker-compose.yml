@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    ports:
+      - "5000:5000"
+    volumes:
+      - .:/app
+      - uploads:/app/app/static/uploads
+    environment:
+      - FLASK_ENV=development
+    env_file:
+      - .env
+    command: flask run --host=0.0.0.0
+
+volumes:
+  uploads:

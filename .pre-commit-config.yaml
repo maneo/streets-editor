@@ -1,0 +1,50 @@
+# Pre-commit hooks configuration
+# See https://pre-commit.com for more information
+
+repos:
+  # Ruff - Fast Python linter and formatter
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.4
+    hooks:
+      # Run the linter
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+      # Run the formatter
+      - id: ruff-format
+
+  # General pre-commit hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      # Trim trailing whitespace
+      - id: trailing-whitespace
+        exclude: '^.*\.(md|txt)$'
+      # Ensure files end with a newline
+      - id: end-of-file-fixer
+        exclude: '^.*\.(json)$'
+      # Check YAML syntax
+      - id: check-yaml
+      # Check JSON syntax
+      - id: check-json
+      # Check for merge conflicts
+      - id: check-merge-conflict
+      # Prevent committing large files (>5MB)
+      - id: check-added-large-files
+        args: ['--maxkb=5000']
+        exclude: '^\.ai/.*\.(jpg|jpeg|png)$'
+      # Check for files that would conflict on case-insensitive filesystems
+      - id: check-case-conflict
+      # Check for Python syntax errors
+      - id: check-ast
+      # Check Python docstring is first
+      - id: check-docstring-first
+      # Detect private keys
+      - id: detect-private-key
+
+  # Black - Code formatter (optional, since ruff-format does the same)
+  # Uncomment if you prefer black over ruff-format
+  # - repo: https://github.com/psf/black
+  #   rev: 24.10.0
+  #   hooks:
+  #     - id: black
+  #       language_version: python3.11
