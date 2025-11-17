@@ -1,5 +1,7 @@
 """Flask application factory."""
 
+import os
+
 from flask import Flask
 from flask_login import LoginManager
 from flask_migrate import Migrate
@@ -16,7 +18,6 @@ login_manager = LoginManager()
 def create_app(config_name="development"):
     """Create and configure the Flask application."""
     app = Flask(__name__)
-
     # Load configuration
     app.config.from_object(config[config_name])
 

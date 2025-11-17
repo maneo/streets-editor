@@ -77,7 +77,20 @@ def upload_file():
             flash(f"Successfully extracted {len(extracted_streets)} streets!", "success")
 
     except Exception as e:
-        flash(f"Error during extraction: {str(e)}", "error")
+        error_msg = str(e)
+        # Provide user-friendly messages for common errors
+        if "Rate limit exceeded" in error_msg:
+            flash(
+                "AI extraction is temporarily rate limited. Please wait a few minutes and try again, or add streets manually.",
+                "warning",
+            )
+        elif "API request failed" in error_msg:
+            flash(
+                "AI extraction service is currently unavailable. You can add streets manually.",
+                "warning",
+            )
+        else:
+            flash(f"Error during extraction: {error_msg}", "error")
     finally:
         # Clean up uploaded file
         if os.path.exists(filepath):

@@ -18,6 +18,7 @@ instance/
 
 # Environment
 .env
+.env.local
 
 # Uploads
 app/static/uploads/*

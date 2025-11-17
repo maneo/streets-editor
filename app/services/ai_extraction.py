@@ -2,6 +2,7 @@
 
 import base64
 import json
+import time
 
 import requests
 from flask import current_app
@@ -16,6 +17,8 @@ def encode_image_to_base64(filepath):
 def extract_streets_from_image(filepath, city, decade):
     """
     Extract street names from historical city map using Gemini via OpenRouter.
+    Note: Set models via EXTRACTION_MODEL environment variable.
+    Recommended models: google/gemini-pro, openai/gpt-4o-mini, openai/gpt-4o
 
     Args:
         filepath: Path to the uploaded image
@@ -34,10 +37,12 @@ def extract_streets_from_image(filepath, city, decade):
     """
     api_key = current_app.config["OPENROUTER_API_KEY"]
     base_url = current_app.config["OPENROUTER_BASE_URL"]
-    model = current_app.config["GEMINI_MODEL"]
+    model = current_app.config["EXTRACTION_MODEL"]
 
     if not api_key:
         raise ValueError("OPENROUTER_API_KEY is not configured.")
+
+    current_app.logger.info(f"Using AI model: {model} for city: {city}, decade: {decade}")
 
     # Encode image
     base64_image = encode_image_to_base64(filepath)
@@ -69,7 +74,7 @@ Important:
 - If there's no prefix, use "-"
 """
 
-    # Make API request to OpenRouter
+    # Make API request to OpenRouter with retry logic
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
 
     payload = {
@@ -88,40 +93,104 @@ Important:
         ],
     }
 
-    try:
-        response = requests.post(base_url, headers=headers, json=payload, timeout=300)
-        response.raise_for_status()
+    # Retry logic for rate limiting
+    max_retries = 3
+    base_delay = 2  # seconds
 
-        result = response.json()
+    for attempt in range(max_retries + 1):
+        try:
+            response = requests.post(base_url, headers=headers, json=payload, timeout=300)
 
-        # Extract the response text
-        if "choices" in result and len(result["choices"]) > 0:
-            content = result["choices"][0]["message"]["content"]
+            # Handle rate limiting specifically
+            if response.status_code == 429:
+                if attempt == max_retries:
+                    raise Exception(
+                        "Rate limit exceeded. Please try again later or consider upgrading to a paid plan."
+                    ) from None
 
-            # Parse JSON from response
-            # Sometimes the model might wrap JSON in markdown code blocks
-            content = content.strip()
-            if content.startswith("```json"):
-                content = content[7:]
-            if content.startswith("```"):
-                content = content[3:]
-            if content.endswith("```"):
-                content = content[:-3]
-            content = content.strip()
+                # Exponential backoff: 2, 4, 8 seconds
+                delay = base_delay * (2**attempt)
+                current_app.logger.warning(
+                    f"Rate limit hit (429). Retrying in {delay} seconds... (attempt {attempt + 1}/{max_retries + 1})"
+                )
+                time.sleep(delay)
+                continue
 
-            streets = json.loads(content)
+            response.raise_for_status()
 
-            # Validate structure
-            if not isinstance(streets, list):
-                raise ValueError("Response is not a list.")
+            result = response.json()
 
-            return streets
-        else:
-            raise ValueError("No response from AI model.")
+            # Extract the response text
+            if "choices" in result and len(result["choices"]) > 0:
+                content = result["choices"][0]["message"]["content"]
 
-    except requests.exceptions.RequestException as e:
-        raise Exception(f"API request failed: {str(e)}") from e
-    except json.JSONDecodeError as e:
-        raise Exception(f"Failed to parse AI response as JSON: {str(e)}") from e
-    except Exception as e:
-        raise Exception(f"Extraction failed: {str(e)}") from e
+                # Parse JSON from response
+                # Sometimes the model might wrap JSON in markdown code blocks
+                content = content.strip()
+                if content.startswith("```json"):
+                    content = content[7:]
+                if content.startswith("```"):
+                    content = content[3:]
+                if content.endswith("```"):
+                    content = content[:-3]
+                content = content.strip()
+
+                streets = json.loads(content)
+
+                # Validate structure
+                if not isinstance(streets, list):
+                    raise ValueError("Response is not a list.")
+
+                return streets
+            else:
+                raise ValueError("No response from AI model.")
+
+        except requests.exceptions.RequestException as e:
+            # Check for 400 Bad Request errors - don't retry these
+            if hasattr(e, "response") and e.response is not None and e.response.status_code == 400:
+                current_app.logger.error(f"Bad request details - Model: {model}, URL: {base_url}")
+                current_app.logger.error(
+                    f"Response content: {e.response.text if hasattr(e.response, 'text') else 'No response text'}"
+                )
+                raise Exception(
+                    f"Bad request to AI API. Model '{model}' may be invalid or request format incorrect. Check OpenRouter API docs for available models."
+                ) from e
+
+            # Check for rate limiting (429) - retry with backoff
+            if hasattr(e, "response") and e.response is not None and e.response.status_code == 429:
+                if attempt == max_retries:
+                    raise Exception(
+                        "Rate limit exceeded. Please try again later or consider upgrading to a paid plan."
+                    ) from None
+                delay = base_delay * (2**attempt)
+                current_app.logger.warning(
+                    f"Rate limit hit (429). Retrying in {delay} seconds... (attempt {attempt + 1}/{max_retries + 1})"
+                )
+                time.sleep(delay)
+                continue
+
+            # Check for 404 Not Found errors - don't retry these
+            if hasattr(e, "response") and e.response is not None and e.response.status_code == 404:
+                current_app.logger.error(f"Not found error - Model: {model}, URL: {base_url}")
+                current_app.logger.error(
+                    f"Response content: {e.response.text if hasattr(e.response, 'text') else 'No response text'}"
+                )
+                raise Exception(
+                    f"Model '{model}' not found on OpenRouter. Check if the model name is correct and available."
+                ) from e
+
+            if attempt == max_retries:
+                raise Exception(
+                    f"API request failed after {max_retries + 1} attempts: {str(e)}"
+                ) from e
+            # For other request errors (network issues, 5xx errors), retry with backoff
+            delay = base_delay * (2**attempt)
+            current_app.logger.warning(
+                f"Request failed (attempt {attempt + 1}/{max_retries + 1}): {str(e)}. Retrying in {delay} seconds..."
+            )
+            time.sleep(delay)
+            continue
+        except json.JSONDecodeError as e:
+            raise Exception(f"Failed to parse AI response as JSON: {str(e)}") from e
+        except Exception as e:
+            raise Exception(f"Extraction failed: {str(e)}") from e
