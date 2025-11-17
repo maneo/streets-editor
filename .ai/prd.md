@@ -17,19 +17,19 @@ Przygotowanie kompletnych list ulic dla danego miasta i dekady jest czasochłonn
 - zachowuje prostotę (brak skomplikowanych ról i uprawnień).
 
 ## 3. Wymagania funkcjonalne
-FR-001 - Użytkownik może się zarejestrować i zalogować (prosta autoryzacja).
-FR-002 - Po zalogowaniu użytkownik może załadować jeden plik JPG/PNG ≤ 50 MB.
-FR-003 - Użytkownik definiuje miasto i dekadę, które będą przypisane do sesji ekstrakcji.
-FR-004 - System uruchamia ekstrakcję AI (Gemini 2.5 Pro) i zwraca listę proponowanych ulic w ≤ 5 min.
-FR-006 - Jeśli AI zwróci pustą listę, system informuje użytkownika i umożliwia ręczne dodawanie ulic.
-FR-007 - Użytkownik może edytować każdą pozycję: zmienić nazwę, dodać warianty zapisu, oznaczyć jako odrzuconą.
-FR-008 - Użytkownik może ręcznie dodać nową ulicę z walidacją unikalności (miasto + dekada + main_name).
-FR-009 - Użytkownik może pobrać bieżące wyniki sesji jako plik TXT.
-FR-010 - Użytkownik może wyeksportować zweryfikowany słownik jako plik JSON zgodny z przykładem.
-FR-011 - Pliki eksportu są dostępne tylko dla zalogowanych użytkowników.
-FR-012 - Po zamknięciu przeglądarki lub zakończeniu sesji skan i niezatwierdzone dane są usuwane.
-FR-013 - System obsługuje wiele równoległych zadań ekstrakcji przy niskim poziomie równoczesności (brak twardego limitu).
-FR-014 - System komunikuje błędy (np. niepoprawny format pliku, przekroczenie limitu rozmiaru).
+* FR-001 - Użytkownik może się zarejestrować i zalogować (prosta autoryzacja).
+* FR-002 - Po zalogowaniu użytkownik może załadować jeden plik JPG/PNG ≤ 50 MB.
+* FR-003 - Użytkownik definiuje miasto i dekadę, które będą przypisane do sesji ekstrakcji.
+* FR-004 - System uruchamia ekstrakcję AI (Gemini 2.5 Pro) i zwraca listę proponowanych ulic w ≤ 5 min.
+* FR-006 - Jeśli AI zwróci pustą listę, system informuje użytkownika i umożliwia ręczne dodawanie ulic.
+* FR-007 - Użytkownik może edytować każdą pozycję: zmienić nazwę, dodać warianty zapisu, oznaczyć jako odrzuconą.
+* FR-008 - Użytkownik może ręcznie dodać nową ulicę z walidacją unikalności (miasto + dekada + main_name).
+* FR-009 - Użytkownik może pobrać bieżące wyniki sesji jako plik TXT.
+* FR-010 - Użytkownik może wyeksportować zweryfikowany słownik jako plik JSON zgodny z przykładem.
+* FR-011 - Pliki eksportu są dostępne tylko dla zalogowanych użytkowników.
+* FR-012 - Po zamknięciu przeglądarki lub zakończeniu sesji skan i niezatwierdzone dane są usuwane.
+* FR-013 - System obsługuje wiele równoległych zadań ekstrakcji przy niskim poziomie równoczesności (brak twardego limitu).
+* FR-014 - System komunikuje błędy (np. niepoprawny format pliku, przekroczenie limitu rozmiaru).
 
 ## 4. Granice produktu
 - Brak wersjonowania słowników i historii zmian.
@@ -54,7 +54,7 @@ FR-014 - System komunikuje błędy (np. niepoprawny format pliku, przekroczenie 
 | US-009 | Pobranie TXT | Jako użytkownik chcę pobrać listę ulic jako TXT, aby zachować wyniki sesji. | • Przycisk „Pobierz TXT” generuje plik z aktualną listą.<br>• Plik zawiera jedną nazwę ulicy na linię. |
 | US-010 | Eksport JSON | Jako użytkownik chcę wyeksportować zweryfikowany słownik jako JSON, aby użyć go w innych narzędziach. | • Eksport dostępny po zakończeniu weryfikacji.<br>• JSON zgodny ze wzorem w dokumentacji.<br>• Plik pobiera się lokalnie. |
 | US-011 | Wylogowanie | Jako użytkownik chcę się wylogować, aby zakończyć sesję. | • Po wylogowaniu sesja jest zamykana.<br>• Skan i niezatwierdzone dane są usunięte. |
-| US-012 | Równoległe zadania | Jako użytkownik chcę uruchomić więcej niż jedną ekstrakcję równolegle, jeśli mam otwarte dwie karty. | • System przyjmuje wiele zadań bez blokady.<br>• Każde zadanie ma osobny loader i wynik. |
+| US-012 | Pogląd wgranego pliku | Jako użytkownik w trakcie weryfikacji wyekstrahowanych ulic chce mieć pogląd skanu który wgrałem | • Nad listą ulic i edytorem wyświetla się pogląd wgranej mapy.<br> |
 
 ## 6. Metryki sukcesu
 - MS-001 - ≥ 80 % propozycji AI zaakceptowanych bez edycji (precyzja ekstrakcji).
