@@ -6,6 +6,7 @@ Flask-Migrate>=4.0.5
 
 # Database
 SQLAlchemy>=2.0.23
+psycopg2-binary
 
 # Authentication & Security
 Werkzeug>=3.0.1

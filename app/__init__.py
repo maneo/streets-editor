@@ -53,7 +53,8 @@ def create_app(config_name="development"):
     register_cli_commands(app)
 
     # Create database tables
-    with app.app_context():
-        db.create_all()
+    # with app.app_context():
+    #     if config_name in ["development", "testing"]:
+    #         db.create_all()
 
     return app
