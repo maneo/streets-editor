@@ -1,96 +1,145 @@
 // Editor JavaScript for managing streets
 
-// Add new street
+// Edit street in form
+async function editStreetInForm(streetId) {
+    try {
+        // Fetch street data
+        const response = await fetch(`/api/streets/${streetId}`);
+        if (!response.ok) {
+            alert('Failed to load street data.');
+            return;
+        }
+
+        const streetData = await response.json();
+
+        // Fill form fields
+        document.getElementById('editingStreetId').value = streetId;
+        document.getElementById('newPrefix').value = streetData.prefix;
+        document.getElementById('newStreetName').value = streetData.main_name;
+
+        // Convert arrays back to comma-separated strings
+        const variantsStr = streetData.variants ? streetData.variants.join(', ') : '';
+        const misspellingsStr = streetData.misspellings ? streetData.misspellings.join(', ') : '';
+
+        document.getElementById('newVariants').value = variantsStr;
+        document.getElementById('newMisspellings').value = misspellingsStr;
+
+        // Update form UI for editing
+        document.getElementById('formTitle').textContent = 'Edit Street';
+        document.getElementById('submitButton').textContent = 'Save Changes';
+
+        // Add cancel button if it doesn't exist
+        const formButtons = document.getElementById('formButtons');
+        if (!document.getElementById('cancelEditButton')) {
+            const cancelButton = document.createElement('button');
+            cancelButton.type = 'button';
+            cancelButton.id = 'cancelEditButton';
+            cancelButton.className = 'px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 mr-3';
+            cancelButton.textContent = 'Cancel Edit';
+            cancelButton.onclick = cancelEdit;
+            formButtons.insertBefore(cancelButton, formButtons.firstChild);
+        }
+
+        // Scroll to form
+        document.getElementById('addStreetForm').scrollIntoView({ behavior: 'smooth' });
+    } catch (error) {
+        console.error('Error loading street data:', error);
+        alert('An error occurred while loading street data.');
+    }
+}
+
+// Cancel editing and reset form
+function cancelEdit() {
+    // Clear form
+    document.getElementById('addStreetForm').reset();
+    document.getElementById('editingStreetId').value = '';
+
+    // Reset UI
+    document.getElementById('formTitle').textContent = 'Add New Street';
+    document.getElementById('submitButton').textContent = 'Add Street';
+
+    // Remove cancel button
+    const cancelButton = document.getElementById('cancelEditButton');
+    if (cancelButton) {
+        cancelButton.remove();
+    }
+}
+
+// Handle form submission (add or edit street)
 document.getElementById('addStreetForm').addEventListener('submit', async function(e) {
     e.preventDefault();
 
+    const editingStreetId = document.getElementById('editingStreetId').value;
     const prefix = document.getElementById('newPrefix').value;
     const mainName = document.getElementById('newStreetName').value.trim();
+    const variantsText = document.getElementById('newVariants').value.trim();
+    const misspellingsText = document.getElementById('newMisspellings').value.trim();
 
     if (!mainName) {
         alert('Please enter a street name.');
         return;
     }
 
+    // Parse comma-separated values into arrays
+    const variants = variantsText ? variantsText.split(',').map(v => v.trim()).filter(v => v) : [];
+    const misspellings = misspellingsText ? misspellingsText.split(',').map(m => m.trim()).filter(m => m) : [];
+
+    const isEditing = editingStreetId !== '';
+
     try {
-        const response = await fetch('/api/streets', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                city: CITY,
-                decade: DECADE,
-                prefix: prefix,
-                main_name: mainName
-            })
-        });
+        let response;
+        if (isEditing) {
+            // Update existing street
+            response = await fetch(`/api/streets/${editingStreetId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    prefix: prefix,
+                    main_name: mainName,
+                    variants: variants,
+                    misspellings: misspellings
+                })
+            });
+        } else {
+            // Add new street
+            response = await fetch('/api/streets', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    city: CITY,
+                    decade: DECADE,
+                    prefix: prefix,
+                    main_name: mainName,
+                    variants: variants,
+                    misspellings: misspellings
+                })
+            });
+        }
 
         const data = await response.json();
 
         if (response.ok) {
-            // Reload page to show new street
+            if (isEditing) {
+                // Reset form to add mode and reload page
+                cancelEdit();
+            } else {
+                // Clear form and reload page to show new street
+                document.getElementById('addStreetForm').reset();
+            }
             window.location.reload();
         } else {
-            alert(data.error || 'Failed to add street.');
+            alert(data.error || `Failed to ${isEditing ? 'update' : 'add'} street.`);
         }
     } catch (error) {
         console.error('Error:', error);
-        alert('An error occurred while adding the street.');
+        alert(`An error occurred while ${isEditing ? 'updating' : 'adding'} the street.`);
     }
 });
 
-// Edit street
-function editStreet(id, prefix, name) {
-    document.getElementById('editStreetId').value = id;
-    document.getElementById('editPrefix').value = prefix;
-    document.getElementById('editStreetName').value = name;
-    document.getElementById('editModal').classList.remove('hidden');
-}
-
-// Close edit modal
-function closeEditModal() {
-    document.getElementById('editModal').classList.add('hidden');
-}
-
-// Handle edit form submission
-document.getElementById('editStreetForm').addEventListener('submit', async function(e) {
-    e.preventDefault();
-
-    const id = document.getElementById('editStreetId').value;
-    const prefix = document.getElementById('editPrefix').value;
-    const mainName = document.getElementById('editStreetName').value.trim();
-
-    if (!mainName) {
-        alert('Please enter a street name.');
-        return;
-    }
-
-    try {
-        const response = await fetch(`/api/streets/${id}`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                prefix: prefix,
-                main_name: mainName
-            })
-        });
-
-        const data = await response.json();
-
-        if (response.ok) {
-            // Reload page to show updated street
-            window.location.reload();
-        } else {
-            alert(data.error || 'Failed to update street.');
-        }
-    } catch (error) {
-        console.error('Error:', error);
-        alert('An error occurred while updating the street.');
-    }
-});
 
 // Delete street
 async function deleteStreet(id) {

@@ -15,7 +15,7 @@ A web application for creating and editing street dictionaries from historical c
 ### Frontend
 - Jinja2 templates (Flask's built-in templating)
 - Vanilla JavaScript for dynamic interactions
-- Tailwind CSS 4 for styling
+- Custom CSS for styling
 
 ### Backend
 - Python with Flask framework
@@ -32,7 +32,6 @@ A web application for creating and editing street dictionaries from historical c
 ### Prerequisites
 
 - Python 3.11+
-- Node.js (for Tailwind CSS)
 - OpenRouter API key
 
 ### Installation
@@ -50,13 +49,7 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-4. Install Tailwind CSS:
-```bash
-npm install -D tailwindcss
-npx tailwindcss init
-```
-
-5. Setup environment variables:
+4. Setup environment variables:
 ```bash
 cp .env.example .env
 ```
@@ -65,19 +58,14 @@ Edit `.env` and add your configuration:
 - `SECRET_KEY`: Your Flask secret key
 - `OPENROUTER_API_KEY`: Your OpenRouter API key
 
-6. Build Tailwind CSS:
-```bash
-npx tailwindcss -i ./app/static/css/input.css -o ./app/static/css/output.css --watch
-```
-
-7. Initialize database:
+5. Initialize database:
 ```bash
 flask db init
 flask db migrate -m "Initial migration"
 flask db upgrade
 ```
 
-8. Run the application:
+6. Run the application:
 ```bash
 python run.py
 ```

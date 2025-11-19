@@ -1,10 +1,10 @@
 Frontend:
 - Renderowanie stron przy pomocy wbudowanego we flaska wsparcia dla szablonów jinja
 - Dynamiczne elementy stron przy wykorzystaniu czystego javascriptu
-- Tailwind 4 pozwala na wygodne stylowanie aplikacji
+- Bulma (linkowana statycznie, bez customizacji) pozwala na wygodne stylowanie aplikacji
 
 Backend:
-- Jako bazę danych wykorzystamy SQLite
+- Jako bazę danych wykorzystamy Postgresql/Supabase
 - Jako warstwę dostępową do bazy SQLAlchemy
 - Całość logiki implementowana w Pythonie przy wsparciu Flaska
 - Rejestracja i autentykacja przy wykorzstaniu modułu Flask-login

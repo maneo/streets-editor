@@ -56,6 +56,8 @@ def upload_file():
     # Start extraction (this could be async in production)
     try:
         extracted_streets = extract_streets_from_image(filepath, city, decade)
+        # extracted_streets = []
+        # time.sleep(10)
 
         # Save extracted streets to database
         if not extracted_streets:
@@ -122,6 +124,8 @@ def add_street():
     decade = data.get("decade")
     prefix = data.get("prefix", "ul.")
     main_name = data.get("main_name", "").strip()
+    variants = data.get("variants", [])
+    misspellings = data.get("misspellings", [])
 
     if not city or not decade or not main_name:
         return jsonify({"error": "City, decade, and main_name are required."}), 400
@@ -135,6 +139,8 @@ def add_street():
         return jsonify({"error": "Street already exists in this dictionary."}), 400
 
     # Create new street
+    import json
+
     street = Street(
         user_id=current_user.id,
         city=city,
@@ -142,6 +148,8 @@ def add_street():
         prefix=prefix,
         main_name=main_name.lower(),
         main_name_cs=main_name,
+        variants=json.dumps(variants),
+        misspellings=json.dumps(misspellings),
         source="manual",
     )
     db.session.add(street)
@@ -152,9 +160,24 @@ def add_street():
             "id": street.id,
             "prefix": street.prefix,
             "main_name": street.main_name_cs,
+            "variants": variants,
+            "misspellings": misspellings,
             "source": street.source,
         }
     ), 201
+
+
+@bp.route("/api/streets/<int:street_id>", methods=["GET"])
+@login_required
+def get_street(street_id):
+    """Get a single street."""
+    street = Street.query.get_or_404(street_id)
+
+    # Ensure user owns this street
+    if street.user_id != current_user.id:
+        return jsonify({"error": "Unauthorized"}), 403
+
+    return jsonify(street.to_dict()), 200
 
 
 @bp.route("/api/streets/<int:street_id>", methods=["PUT"])

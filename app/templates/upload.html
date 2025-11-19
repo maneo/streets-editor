@@ -3,67 +3,97 @@
 {% block title %}Upload Map - Streets Dictionary Editor{% endblock %}
 
 {% block content %}
-<div class="max-w-2xl mx-auto">
-    <h1 class="text-3xl font-bold text-gray-900 mb-8">Upload Historical City Map</h1>
-
-    <div class="bg-white rounded-lg shadow-md p-8 mb-8">
-        <h2 class="text-xl font-semibold text-gray-900 mb-4">Upload New Map</h2>
+<div class="container">
+    <h1 class="title is-3 mb-6 has-text-grey-dark">Upload Historical City Map</h1>
+    <div class="box mb-6">
+        <h2 class="subtitle is-5">Upload New Map</h2>
 
         <form method="POST" action="{{ url_for('upload.upload_file') }}" enctype="multipart/form-data">
-            <div class="mb-4">
-                <label for="city" class="block text-sm font-medium text-gray-700 mb-2">
-                    City
-                </label>
-                <input
-                    type="text"
-                    id="city"
-                    name="city"
-                    required
-                    placeholder="e.g., Poznań"
-                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
+            <div class="field">
+                <label for="city" class="label">City</label>
+                <div class="control">
+                    <input
+                        type="text"
+                        id="city"
+                        name="city"
+                        required
+                        placeholder="e.g., Poznań"
+                        class="input"
+                    >
+                </div>
             </div>
 
-            <div class="mb-4">
-                <label for="decade" class="block text-sm font-medium text-gray-700 mb-2">
-                    Decade
-                </label>
-                <input
-                    type="text"
-                    id="decade"
-                    name="decade"
-                    required
-                    placeholder="e.g., 1940-1949"
-                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
+            <div class="field">
+                <label for="decade" class="label">Decade</label>
+                <div class="control">
+                    <input
+                        type="text"
+                        id="decade"
+                        name="decade"
+                        required
+                        placeholder="e.g., 1940-1949"
+                        class="input"
+                    >
+                </div>
             </div>
 
-            <div class="mb-6">
-                <label for="file" class="block text-sm font-medium text-gray-700 mb-2">
-                    Map Image (JPG/PNG, max 50 MB)
-                </label>
-                <input
-                    type="file"
-                    id="file"
-                    name="file"
-                    accept=".jpg,.jpeg,.png"
-                    required
-                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
+            <div class="field">
+                <label for="file" class="label">Map Image (JPG/PNG, max 50 MB)</label>
+                <div class="control">
+                    <div class="file has-name">
+                        <label class="file-label">
+                            <input
+                                type="file"
+                                id="file"
+                                name="file"
+                                accept=".jpg,.jpeg,.png"
+                                required
+                                class="file-input"
+                            >
+                            <span class="file-cta">
+                                <span class="file-icon">
+                                    <i class="fas fa-upload"></i>
+                                </span>
+                                <span class="file-label">
+                                    Choose a file…
+                                </span>
+                            </span>
+                            <span class="file-name">
+                                No file selected
+                            </span>
+                        </label>
+                    </div>
+                </div>
             </div>
 
-            <button
-                type="submit"
-                class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-                Upload and Extract Streets
-            </button>
+            <div class="field">
+                <div class="control">
+                    <button type="submit" class="button is-primary is-fullwidth">
+                        Upload and Extract Streets
+                    </button>
+                </div>
+            </div>
         </form>
     </div>
 
+
+    <!-- Loading Overlay -->
+    <div id="uploadOverlay" class="modal is-active" style="display: none;">
+        <div class="modal-background"></div>
+        <div class="modal-content">
+            <div class="box has-text-centered">
+                <div class="loader is-loading mb-4" style="height: 3rem; width: 3rem;"></div>
+                <h3 class="title is-5">Processing your upload...</h3>
+                <p class="has-text-grey">Analysing provided city plan and extracting street names...</p>
+            </div>
+        </div>
+    </div>
+
+
+
     {% if streets %}
-    <div class="bg-white rounded-lg shadow-md p-8">
-        <h2 class="text-xl font-semibold text-gray-900 mb-4">Your Dictionaries</h2>
+    <div class="box">
+        <h2 class="subtitle is-5 has-text-grey-light">Your Dictionaries</h2>
 
         {% set city_decades = {} %}
         {% for street in streets %}
@@ -74,24 +104,71 @@
             {% set _ = city_decades[key].update({'count': city_decades[key]['count'] + 1}) %}
         {% endfor %}
 
-        <ul class="space-y-3">
+        <div class="content">
             {% for key, data in city_decades.items() %}
-            <li class="flex justify-between items-center p-4 border border-gray-200 rounded-md hover:bg-gray-50">
-                <div>
-                    <span class="font-medium">{{ data.city }}</span> -
-                    <span class="text-gray-600">{{ data.decade }}</span>
-                    <span class="text-sm text-gray-500 ml-2">({{ data.count }} streets)</span>
+            <div class="level box">
+                <div class="level-left">
+                    <div>
+                        <strong>{{ data.city }}</strong> -
+                        <span class="has-text-grey">{{ data.decade }}</span>
+                        <span class="tag is-light ml-2">({{ data.count }} streets)</span>
+                    </div>
                 </div>
-                <a
-                    href="{{ url_for('upload.editor', city=data.city, decade=data.decade) }}"
-                    class="text-blue-600 hover:text-blue-800 font-medium"
-                >
-                    Edit →
-                </a>
-            </li>
+                <div class="level-right">
+                    <a
+                        href="{{ url_for('upload.editor', city=data.city, decade=data.decade) }}"
+                        class="button is-link is-small"
+                    >
+                        Edit →
+                    </a>
+                </div>
+            </div>
             {% endfor %}
-        </ul>
+        </div>
     </div>
     {% endif %}
 </div>
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.querySelector('form');
+    const overlay = document.getElementById('uploadOverlay');
+
+    if (form && overlay) {
+        // Handle file input name display
+        const fileInput = document.getElementById('file');
+        const fileName = document.querySelector('.file-name');
+
+        if (fileInput && fileName) {
+            fileInput.addEventListener('change', function() {
+                if (this.files && this.files.length > 0) {
+                    fileName.textContent = this.files[0].name;
+                } else {
+                    fileName.textContent = 'No file selected';
+                }
+            });
+        }
+
+        form.addEventListener('submit', function(e) {
+            // Show overlay immediately
+            overlay.style.display = 'flex';
+
+            // Make text inputs readonly to prevent editing while maintaining form submission
+            const textInputs = form.querySelectorAll('input[type="text"]');
+            textInputs.forEach(input => {
+                input.readOnly = true;
+                input.classList.add('has-background-grey-lighter', 'is-static');
+            });
+
+            // Hide submit button to prevent multiple submissions and visual clutter
+            const submitButton = form.querySelector('button[type="submit"]');
+            if (submitButton) {
+                submitButton.style.display = 'none';
+            }
+        });
+    }
+});
+</script>
+{% endblock %}
 {% endblock %}
