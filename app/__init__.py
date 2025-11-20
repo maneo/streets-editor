@@ -41,11 +41,12 @@ def create_app(config_name="development"):
     from app.models import street, user
 
     # Register blueprints
-    from app.routes import auth, export, upload
+    from app.routes import api, auth, export, upload
 
     app.register_blueprint(auth.bp)
     app.register_blueprint(upload.bp)
     app.register_blueprint(export.bp)
+    app.register_blueprint(api.bp)
 
     # Register CLI commands
     from app.cli import register_cli_commands
