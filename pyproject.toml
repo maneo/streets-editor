@@ -8,6 +8,7 @@ exclude = [
     ".git",
     ".venv",
     "venv",
+    ".ai",
     "__pycache__",
     "build",
     "dist",
