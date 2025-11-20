@@ -41,12 +41,19 @@ class Street(db.Model):
         return f"<Street {self.prefix} {self.main_name}>"
 
     def to_dict(self):
-        """Convert street to dictionary for JSON export."""
+        """Convert street to dictionary for JSON export and APIs."""
         import json
+
+        variants = json.loads(self.variants) if self.variants else []
+        misspellings = json.loads(self.misspellings) if self.misspellings else []
+
+        display_prefix = "" if not self.prefix or self.prefix == "-" else f"{self.prefix} "
 
         return {
             "prefix": self.prefix,
-            "main_name": self.main_name_cs,  # Use case-sensitive version for export
-            "variants": json.loads(self.variants) if self.variants else [],
-            "misspellings": json.loads(self.misspellings) if self.misspellings else [],
+            "main_name": (self.main_name or "").lower(),
+            "main_name_cs": self.main_name_cs,
+            "display_name": f"{display_prefix}{self.main_name_cs}".strip(),
+            "variants": variants,
+            "misspellings": misspellings,
         }

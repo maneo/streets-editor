@@ -18,16 +18,16 @@
         <div class="level-right">
             <div class="buttons">
                 <a
-                    href="{{ url_for('export.export_txt', city=city, decade=decade) }}"
+                    href="{{ url_for('api_dictionaries.dictionary_streets_txt', city=city, decade=decade) }}"
                     class="button is-dark"
                 >
                     Download TXT
                 </a>
                 <a
-                    href="{{ url_for('export.export_json', city=city, decade=decade) }}"
+                    href="{{ url_for('api_dictionaries.dictionary_streets_json', city=city, decade=decade) }}"
                     class="button is-success"
                 >
-                    Download JSON
+                    View JSON
                 </a>
             </div>
         </div>
@@ -145,13 +145,13 @@
                         <td>
                             <div class="buttons are-small">
                                 <button
-                                    onclick="editStreetInForm({{ street.id }})"
+                                    onclick="editStreetInForm('{{ street.id }}')"
                                     class="button is-link is-small"
                                 >
                                     Edit
                                 </button>
                                 <button
-                                    onclick="deleteStreet({{ street.id }})"
+                                    onclick="deleteStreet('{{ street.id }}')"
                                     class="button is-danger is-small"
                                 >
                                     Delete

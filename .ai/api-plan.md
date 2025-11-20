@@ -195,9 +195,9 @@ decade: string (required)
 
 **Sortowanie**: Alfabetycznie po mieście, następnie po dekadzie (malejąco)
 
-#### GET /api/dictionaries/{city}/{decade}/streets
+#### GET /api/dictionaries/{city}/{decade}/streets/json
 **Status**: ❌ Wymaga implementacji
-**Opis**: Lista ulic dla konkretnego słownika z paginacją
+**Opis**: Lista ulic dla konkretnego słownika z paginacją w formie jsona
 **Autoryzacja**: Wymagana
 **Path Parameters**:
 - `city`: string (required) - nazwa miasta
@@ -233,6 +233,19 @@ decade: string (required)
     "total_pages": "integer"
   }
 }
+```
+
+#### GET /api/dictionaries/{city}/{decade}/streets/txt
+**Status**: ❌ Wymaga implementacji
+**Opis**: Lista ulic dla konkretnego słownika bez paginacją w formie tekstowej
+**Autoryzacja**: Wymagana
+**Path Parameters**:
+- `city`: string (required) - nazwa miasta
+- `decade`: string (required) - zakres dekady
+**Response (200)**:
+```
+ul. Głogowska
+pl. Wolności
 ```
 
 
