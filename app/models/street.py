@@ -50,10 +50,18 @@ class Street(db.Model):
         display_prefix = "" if not self.prefix or self.prefix == "-" else f"{self.prefix} "
 
         return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "city": self.city,
+            "decade": self.decade,
             "prefix": self.prefix,
             "main_name": (self.main_name or "").lower(),
             "main_name_cs": self.main_name_cs,
             "display_name": f"{display_prefix}{self.main_name_cs}".strip(),
             "variants": variants,
             "misspellings": misspellings,
+            "is_rejected": self.is_rejected,
+            "source": self.source,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
