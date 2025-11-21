@@ -19,7 +19,7 @@ A web application for creating and editing street dictionaries from historical c
 
 ### Backend
 - Python with Flask framework
-- SQLite database
+- PostgreSQL database (production/testing) or SQLite (development)
 - SQLAlchemy ORM
 - Flask-Login for authentication
 
