@@ -55,7 +55,7 @@ class Street(db.Model):
             "city": self.city,
             "decade": self.decade,
             "prefix": self.prefix,
-            "main_name": self.main_name_cs,  # Use case-sensitive version for editor
+            "main_name": self.main_name,  # Use lowercase version for API consistency
             "main_name_cs": self.main_name_cs,
             "display_name": f"{display_prefix}{self.main_name_cs}".strip(),
             "variants": variants,
