@@ -57,8 +57,12 @@ class TestingConfig(Config):
     """Testing configuration."""
 
     TESTING = True
-    SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
     WTF_CSRF_ENABLED = False
+
+    def __init__(self):
+        super().__init__()
+        database_url = os.environ.get("DATABASE_URL") or "sqlite:///:memory:"
+        self.SQLALCHEMY_DATABASE_URI = database_url
 
 
 # Configuration dictionary

@@ -19,7 +19,7 @@ def create_app(config_name="development"):
     """Create and configure the Flask application."""
     app = Flask(__name__)
     # Load configuration
-    app.config.from_object(config[config_name])
+    app.config.from_object(config[config_name]())
 
     # Initialize extensions
     db.init_app(app)

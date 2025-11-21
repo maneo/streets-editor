@@ -35,9 +35,12 @@ TEST_STREET_DATA_NO_PREFIX = {
 @pytest.fixture
 def app():
     """Create and configure a test app."""
-    # Set DATABASE_URL for testing configuration
+    # Import required modules first
     import os
 
+    from app import db
+
+    # Override DATABASE_URL after imports but before create_app
     os.environ["DATABASE_URL"] = "sqlite:///:memory:"
     app = create_app("testing")
     with app.app_context():
