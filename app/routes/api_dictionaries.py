@@ -120,7 +120,7 @@ def dictionary_streets_json(city, decade):
     if pagination.total == 0:
         return _json_error("No streets found for this dictionary.", 404)
 
-    streets_payload = [street.to_dict() for street in pagination.items]
+    streets_payload = [street.to_dict_export() for street in pagination.items]
 
     response_payload = {
         "dictionary": {

@@ -41,7 +41,7 @@ class Street(db.Model):
         return f"<Street {self.prefix} {self.main_name}>"
 
     def to_dict(self):
-        """Convert street to dictionary for JSON export and APIs."""
+        """Convert street to dictionary for editor and general API use."""
         import json
 
         variants = json.loads(self.variants) if self.variants else []
@@ -55,7 +55,33 @@ class Street(db.Model):
             "city": self.city,
             "decade": self.decade,
             "prefix": self.prefix,
-            "main_name": (self.main_name or "").lower(),
+            "main_name": self.main_name_cs,  # Use case-sensitive version for editor
+            "main_name_cs": self.main_name_cs,
+            "display_name": f"{display_prefix}{self.main_name_cs}".strip(),
+            "variants": variants,
+            "misspellings": misspellings,
+            "is_rejected": self.is_rejected,
+            "source": self.source,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+    def to_dict_export(self):
+        """Convert street to dictionary for dictionary export APIs (JSON/TXT)."""
+        import json
+
+        variants = json.loads(self.variants) if self.variants else []
+        misspellings = json.loads(self.misspellings) if self.misspellings else []
+
+        display_prefix = "" if not self.prefix or self.prefix == "-" else f"{self.prefix} "
+
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "city": self.city,
+            "decade": self.decade,
+            "prefix": self.prefix,
+            "main_name": (self.main_name or "").lower(),  # Use lowercase version for exports
             "main_name_cs": self.main_name_cs,
             "display_name": f"{display_prefix}{self.main_name_cs}".strip(),
             "variants": variants,
