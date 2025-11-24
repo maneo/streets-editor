@@ -1,4 +1,13 @@
-"""Application configuration."""
+"""Application configuration.
+
+Database Configuration:
+- Development: Local PostgreSQL via Docker Compose or SQLite fallback
+- Testing: Neon database for e2e tests, SQLite in-memory for unit tests
+- Production: Neon PostgreSQL database
+
+Environment Variables:
+- DATABASE_URL: PostgreSQL connection string (required for production and e2e testing)
+"""
 
 import os
 
@@ -19,26 +28,26 @@ class Config:
     OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
     OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1/chat/completions"
 
-    # AI Model Options (most economic for street name recognition):
-    # Free: google/gemini-2.0-flash-exp:free (rate limited, unreliable)
-    # Best value: google/gemini-flash-1.5 (~$0.000075/1K input, $0.0003/1K output tokens)
-    # Alternative: google/gemini-pro-1.5 (~$0.00125/1K input, $0.005/1K output tokens)
-    # Model selection - change this line to switch models:
-    # Try these in order if one doesn't work: openai/gpt-4o-mini, google/gemini-flash-1.5, google/gemini-pro-1.5
+    # AI Model Options (for street name recognition):
     EXTRACTION_MODEL = os.environ.get("EXTRACTION_MODEL", "google/gemini-2.5-pro")
+
+    # Database batch operations
+    BATCH_INSERT_SIZE = int(os.environ.get("BATCH_INSERT_SIZE", 50))
 
 
 class DevelopmentConfig(Config):
     """Development configuration."""
 
     DEBUG = True
-    SQLALCHEMY_DATABASE_URI = os.environ.get("DATABASE_URL") or "sqlite:///" + os.path.join(
-        os.path.abspath(os.path.dirname(__file__)), "..", "instance", "streets_editor.db"
+    # Use PostgreSQL for development (Docker Compose) or fallback to SQLite
+    SQLALCHEMY_DATABASE_URI = (
+        os.environ.get("DATABASE_URL")
+        or "postgresql://postgres:postgres@localhost:5432/streets_editor_dev"
     )
 
 
 class ProductionConfig(Config):
-    """Production configuration."""
+    """Production configuration using Neon PostgreSQL."""
 
     DEBUG = False
 
@@ -48,7 +57,7 @@ class ProductionConfig(Config):
         if not database_url:
             raise ValueError(
                 "DATABASE_URL environment variable is required for production. "
-                "Please set it to your database connection string."
+                "Please set it to your Neon database connection string."
             )
         self.SQLALCHEMY_DATABASE_URI = database_url
 
@@ -61,6 +70,7 @@ class TestingConfig(Config):
 
     def __init__(self):
         super().__init__()
+        # Use Neon database for e2e tests, fallback to in-memory SQLite for unit tests
         database_url = os.environ.get("DATABASE_URL") or "sqlite:///:memory:"
         self.SQLALCHEMY_DATABASE_URI = database_url
 

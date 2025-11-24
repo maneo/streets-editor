@@ -284,3 +284,125 @@ class TestExportService:
 
             # Check second street (no prefix)
             assert parsed["streets"][1]["display_name"] == "Rynek Główny"
+
+
+class TestBatchInsertion:
+    """Test batch insertion functionality for street uploads."""
+
+    def test_batch_insertion_success(self, app):
+        """Test successful batch insertion of streets."""
+        with app.app_context():
+            # Create test user
+            user = User(email=TEST_USER_EMAIL, password_hash="dummy")
+            db.session.add(user)
+            db.session.commit()
+
+            # Simulate extracted streets (more than batch size)
+            batch_size = app.config["BATCH_INSERT_SIZE"]  # Should be 50
+            num_streets = batch_size + 10  # 60 streets to test multiple batches
+
+            extracted_streets = []
+            for i in range(num_streets):
+                extracted_streets.append({"prefix": "ul.", "main_name": f"Test Street {i}"})
+
+            # Simulate the batch insertion logic from upload.py
+            inserted_count = 0
+            for i in range(0, len(extracted_streets), batch_size):
+                batch = extracted_streets[i : i + batch_size]
+
+                for street_data in batch:
+                    street = Street(
+                        user_id=user.id,
+                        city=TEST_CITY,
+                        decade=TEST_DECADE,
+                        prefix=street_data.get("prefix", "ul."),
+                        main_name=street_data["main_name"].lower(),
+                        main_name_cs=street_data["main_name"],
+                        source="ai",
+                    )
+                    db.session.add(street)
+
+                db.session.commit()
+                inserted_count += len(batch)
+
+            # Verify all streets were inserted
+            assert inserted_count == num_streets
+            streets_in_db = Street.query.filter_by(
+                user_id=user.id, city=TEST_CITY, decade=TEST_DECADE
+            ).all()
+            assert len(streets_in_db) == num_streets
+
+            # Verify street data is correct (sort by ID to get insertion order)
+            streets_in_db_sorted = sorted(streets_in_db, key=lambda s: s.id)
+            for i, street in enumerate(streets_in_db_sorted):
+                assert street.main_name == f"test street {i}"
+                assert street.main_name_cs == f"Test Street {i}"
+                assert street.prefix == "ul."
+                assert street.source == "ai"
+
+    def test_batch_insertion_partial_failure(self, app):
+        """Test batch insertion with partial failures."""
+        with app.app_context():
+            # Create test user
+            user = User(email=TEST_USER_EMAIL, password_hash="dummy")
+            db.session.add(user)
+            db.session.commit()
+
+            # Simulate extracted streets
+            batch_size = 3  # Small batch for testing
+            extracted_streets = [
+                {"prefix": "ul.", "main_name": "Street 1"},
+                {"prefix": "ul.", "main_name": "Street 2"},
+                {"prefix": "ul.", "main_name": "Street 3"},
+                {"prefix": "ul.", "main_name": "Street 4"},
+            ]
+
+            # Mock db.session.commit to fail on second batch
+            original_commit = db.session.commit
+            call_count = 0
+
+            def mock_commit():
+                nonlocal call_count
+                call_count += 1
+                if call_count == 2:  # Fail on second batch
+                    db.session.rollback()
+                    raise Exception("Database timeout")
+                return original_commit()
+
+            db.session.commit = mock_commit
+
+            try:
+                # Simulate the batch insertion logic
+                inserted_count = 0
+                for i in range(0, len(extracted_streets), batch_size):
+                    batch = extracted_streets[i : i + batch_size]
+
+                    for street_data in batch:
+                        street = Street(
+                            user_id=user.id,
+                            city=TEST_CITY,
+                            decade=TEST_DECADE,
+                            prefix=street_data.get("prefix", "ul."),
+                            main_name=street_data["main_name"].lower(),
+                            main_name_cs=street_data["main_name"],
+                            source="ai",
+                        )
+                        db.session.add(street)
+
+                    try:
+                        db.session.commit()
+                        inserted_count += len(batch)
+                    except Exception:
+                        db.session.rollback()
+                        continue  # Continue with next batch
+
+                # Should have inserted first batch (3 streets) but not second batch (1 street)
+                assert inserted_count == 3
+                streets_in_db = Street.query.filter_by(
+                    user_id=user.id, city=TEST_CITY, decade=TEST_DECADE
+                ).all()
+                assert len(streets_in_db) == 3
+
+            finally:
+                # Restore original commit
+                db.session.commit = original_commit

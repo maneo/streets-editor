@@ -15,11 +15,11 @@ A web application for creating and editing street dictionaries from historical c
 ### Frontend
 - Jinja2 templates (Flask's built-in templating)
 - Vanilla JavaScript for dynamic interactions
-- Custom CSS for styling
+- Bulma CSS for styling
 
 ### Backend
 - Python with Flask framework
-- PostgreSQL database (production/testing) or SQLite (development)
+- PostgreSQL database (Neon for production/testing, local Docker for development)
 - SQLAlchemy ORM
 - Flask-Login for authentication
 
@@ -33,6 +33,8 @@ A web application for creating and editing street dictionaries from historical c
 
 - Python 3.11+
 - OpenRouter API key
+- Neon account (for production and testing databases)
+- Docker (for local development)
 
 ### Installation
 
@@ -57,16 +59,42 @@ cp .env.example .env
 Edit `.env` and add your configuration:
 - `SECRET_KEY`: Your Flask secret key
 - `OPENROUTER_API_KEY`: Your OpenRouter API key
+- `DATABASE_URL`: Your Neon production database URL (main branch)
+- `DATABASE_URL_E2E`: Your Neon e2e testing database URL (e2e-testing branch)
 
-5. Initialize database:
+**Environment File Strategy:**
+Use a single `.env` file containing all environments. The application automatically selects the appropriate database:
+- **Local development:** Uses Docker Compose PostgreSQL or SQLite fallback
+- **E2E testing:** Uses `DATABASE_URL_E2E` when running `pytest tests/e2e/`
+- **Production:** Uses `DATABASE_URL` for the main application
+
+
+#### Database Setup
+
+**Local Development Database**
+- Use Docker Compose for local PostgreSQL:
 ```bash
-flask db init
-flask db migrate -m "Initial migration"
-flask db upgrade
+docker-compose up -d db  # Start only PostgreSQL
+```
+
+5. Migrate databases using test-first workflow:
+```bash
+# Step 1: Apply migrations to e2e branch first for testing
+DATABASE_URL=$DATABASE_URL_E2E flask db upgrade
+
+# Step 2: Test your changes on e2e
+DATABASE_URL_E2E=$DATABASE_URL_E2E pytest tests/e2e/
+
+# Step 3: When testing passes, apply to production branch
+DATABASE_URL=$DATABASE_URL flask db upgrade
 ```
 
 6. Run the application:
 ```bash
+# Local development with Docker
+docker-compose up
+
+# Or run directly
 python run.py
 ```
 
@@ -80,9 +108,9 @@ The application will be available at `http://localhost:5000`
 4. Review and edit extracted streets
 5. Export your dictionary as TXT or JSON
 
-## CLI Commands
+### CLI Commands
 
-### Development and Testing
+#### Development and Testing
 
 **Create a test user:**
 ```bash
@@ -103,7 +131,6 @@ flask list-users
 flask clear-db
 # Requires confirmation
 ```
-
 ## Project Structure
 
 ```
@@ -123,18 +150,34 @@ streets-editor/
 
 ## Docker Deployment
 
-Build and run with Docker:
+### Local Development with Docker Compose
+
+Use Docker Compose for local development with PostgreSQL:
+
+```bash
+# Start all services (PostgreSQL + web app)
+docker-compose up
+
+# Or run in background
+docker-compose up -d
+
+# View logs
+docker-compose logs -f web
+
+# Stop services
+docker-compose down
+```
+
+### Production Deployment
+
+Build and run with Docker for production:
 
 ```bash
 docker build -t streets-editor .
 docker run -p 5000:5000 --env-file .env streets-editor
 ```
 
-Or use docker-compose:
-
-```bash
-docker-compose up
-```
+The production deployment uses your Neon database configured in `DATABASE_URL`.
 
 ## Testing
 

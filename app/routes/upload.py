@@ -2,7 +2,7 @@
 
 import os
 
-from flask import Blueprint, flash, redirect, render_template, request, url_for
+from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
 from app import db
@@ -63,20 +63,50 @@ def upload_file():
         if not extracted_streets:
             flash("No streets found in the image. You can add them manually.", "warning")
         else:
-            for street_data in extracted_streets:
-                street = Street(
-                    user_id=current_user.id,
-                    city=city,
-                    decade=decade,
-                    prefix=street_data.get("prefix", "ul."),
-                    main_name=street_data["main_name"].lower(),
-                    main_name_cs=street_data["main_name"],
-                    source="ai",
-                )
-                db.session.add(street)
+            # Batch insert to prevent timeouts on hosted databases like Neon
+            batch_size = current_app.config["BATCH_INSERT_SIZE"]
+            inserted_count = 0
 
-            db.session.commit()
-            flash(f"Successfully extracted {len(extracted_streets)} streets!", "success")
+            for i in range(0, len(extracted_streets), batch_size):
+                batch = extracted_streets[i : i + batch_size]
+
+                for street_data in batch:
+                    street = Street(
+                        user_id=current_user.id,
+                        city=city,
+                        decade=decade,
+                        prefix=street_data.get("prefix", "ul."),
+                        main_name=street_data["main_name"].lower(),
+                        main_name_cs=street_data["main_name"],
+                        source="ai",
+                    )
+                    db.session.add(street)
+
+                try:
+                    db.session.commit()
+                    inserted_count += len(batch)
+                except Exception as batch_error:
+                    db.session.rollback()
+                    current_app.logger.error(
+                        f"Failed to insert batch starting at index {i}: {str(batch_error)}"
+                    )
+                    # Continue with next batch rather than failing completely
+                    continue
+
+                # Log successful batch insertion outside try block to avoid rollback
+                current_app.logger.info(
+                    f"Inserted batch of {len(batch)} streets ({inserted_count}/{len(extracted_streets)})"
+                )
+
+            if inserted_count > 0:
+                flash(f"Successfully extracted {inserted_count} streets!", "success")
+                if inserted_count < len(extracted_streets):
+                    flash(
+                        f"Warning: {len(extracted_streets) - inserted_count} streets could not be saved due to database issues.",
+                        "warning",
+                    )
+            else:
+                flash("Failed to save any streets due to database issues.", "error")
 
     except Exception as e:
         error_msg = str(e)
