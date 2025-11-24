@@ -20,7 +20,7 @@ def browser_context_args(browser_context_args):
         **browser_context_args,
         "viewport": {"width": 1280, "height": 720},
         "record_video_dir": "test-results/videos/" if os.getenv("CI") else None,
-        "record_har_path": "test-results/har/" if os.getenv("CI") else None,
+        "record_har_path": "test-results/har/e2e.har" if os.getenv("CI") else None,
     }
 
 
@@ -35,9 +35,22 @@ def page(context: BrowserContext) -> Generator[Page, None, None]:
 @pytest.fixture(scope="session", autouse=True)
 def setup_test_app():
     """Set up test application and database."""
-    # Start the Flask app in background if not already running
-    # For now, assume the app is already running on TEST_BASE_URL
-    # In CI, you might want to start it programmatically
+    from app import create_app, db
+    from app.models.user import User
+
+    # Create test app and set up database
+    app = create_app("testing")
+    with app.app_context():
+        db.create_all()
+
+        # Create test user if it doesn't exist
+        test_user = User.query.filter_by(email=TEST_USER_EMAIL).first()
+        if not test_user:
+            test_user = User(email=TEST_USER_EMAIL)
+            test_user.set_password(TEST_USER_PASSWORD)
+            db.session.add(test_user)
+            db.session.commit()
+            print(f"Created test user: {TEST_USER_EMAIL}")
 
     # Wait a moment for app to be ready
     time.sleep(1)
