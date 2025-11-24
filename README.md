@@ -23,6 +23,11 @@ A web application for creating and editing street dictionaries from historical c
 - SQLAlchemy ORM
 - Flask-Login for authentication
 
+### Deployment
+- Google Cloud Run for serverless container deployment
+- Docker for containerization
+- Gunicorn for production WSGI server
+
 ### AI Integration
 - OpenRouter.ai for accessing AI models
 - Gemini 2.5 Pro for street extraction
@@ -34,7 +39,8 @@ A web application for creating and editing street dictionaries from historical c
 - Python 3.11+
 - OpenRouter API key
 - Neon account (for production and testing databases)
-- Docker (for local development)
+- Docker (for local development and Cloud Run deployment)
+- Google Cloud CLI (`gcloud`) (for Cloud Run deployment)
 
 ### Installation
 
@@ -104,7 +110,7 @@ The application will be available at `http://localhost:5000`
 
 1. Register a new account or login
 2. Upload a historical city map with city name and decade
-3. Wait for AI extraction (≤ 5 minutes)
+3. Wait for AI extraction (≤ 20 minutes for large/complex images)
 4. Review and edit extracted streets
 5. Export your dictionary as TXT or JSON
 
@@ -178,6 +184,72 @@ docker run -p 5000:5000 --env-file .env streets-editor
 ```
 
 The production deployment uses your Neon database configured in `DATABASE_URL`.
+
+### Google Cloud Run Deployment
+
+Deploy your application to Google Cloud Run for serverless container execution.
+
+#### Prerequisites
+
+- Google Cloud account and project
+- Google Cloud CLI (`gcloud`) installed and authenticated
+- Docker configured for Google Container Registry
+
+#### Initial Setup
+
+1. **Set up Google Cloud Project:**
+```bash
+# Set your project ID
+export PROJECT_ID="your-project-id"
+gcloud config set project $PROJECT_ID
+
+# Enable required APIs
+gcloud services enable run.googleapis.com
+gcloud services enable containerregistry.googleapis.com
+gcloud services enable cloudbuild.googleapis.com
+```
+
+2. **Build and Push Container:**
+```bash
+# Build and push to Google Container Registry
+gcloud builds submit --tag gcr.io/$PROJECT_ID/streets-editor .
+```
+
+3. **Deploy to Cloud Run:**
+```bash
+gcloud run deploy streets-editor \
+  --image gcr.io/$PROJECT_ID/streets-editor \
+  --platform managed \
+  --region us-central1 \
+  --allow-unauthenticated \
+  --set-env-vars="DATABASE_URL=your_neon_database_url" \
+  --set-env-vars="SECRET_KEY=your_random_secret_key" \
+  --set-env-vars="OPENROUTER_API_KEY=your_openrouter_key" \
+  --set-env-vars="FLASK_ENV=production" \
+  --memory=1Gi \
+  --cpu=1 \
+  --max-instances=10 \
+  --timeout=1200
+```
+
+#### Environment Variables
+
+Required environment variables for production:
+- `DATABASE_URL`: Your Neon PostgreSQL connection string
+- `SECRET_KEY`: Random secret key (generate with `openssl rand -hex 32`)
+- `OPENROUTER_API_KEY`: Your OpenRouter API key
+- `FLASK_ENV`: Set to `production`
+
+#### Updating Your Deployment
+
+To update with new code changes:
+```bash
+# Rebuild container
+gcloud builds submit --tag gcr.io/$PROJECT_ID/streets-editor:v2 --no-cache .
+
+# Update service
+gcloud run deploy streets-editor --image gcr.io/$PROJECT_ID/streets-editor:v2
+```
 
 ## Testing
 

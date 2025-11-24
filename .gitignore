@@ -44,3 +44,6 @@ htmlcov/
 
 # macOS
 .DS_Store
+
+# gcloud
+deploy-gcs.sh
