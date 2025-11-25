@@ -63,10 +63,42 @@ cp .env.example .env
 ```
 
 Edit `.env` and add your configuration:
-- `SECRET_KEY`: Your Flask secret key
+
+#### Required Environment Variables
+
+**Core Application:**
+- `SECRET_KEY`: Your Flask secret key (required for all environments)
+- `DATABASE_URL`: PostgreSQL connection string (required for production and e2e testing)
+
+**AI Integration (Required for street extraction):**
 - `OPENROUTER_API_KEY`: Your OpenRouter API key
-- `DATABASE_URL`: Your Neon production database URL (main branch)
-- `DATABASE_URL_E2E`: Your Neon e2e testing database URL (e2e-testing branch)
+
+#### Optional Environment Variables
+
+**File Upload & Processing:**
+- `MAX_UPLOAD_SIZE`: Maximum upload file size in bytes (default: 52428800 = 50MB)
+- `UPLOAD_FOLDER`: Local upload directory path (default: "app/static/uploads")
+- `BATCH_INSERT_SIZE`: Number of database records to insert in batch operations (default: 50)
+
+**AI Model Configuration:**
+- `EXTRACTION_MODEL`: AI model for street name extraction (default: "google/gemini-2.5-pro")
+
+**Google Cloud Storage (Required if using GCS for file storage):**
+- `GCP_PROJECT_ID`: Your Google Cloud Project ID
+- `GCS_BUCKET_DEV`: GCS bucket name for development (default: "streets-editor-dev")
+- `GCS_BUCKET_TEST`: GCS bucket name for testing (default: "streets-editor-test")
+- `GCS_BUCKET_PROD`: GCS bucket name for production (default: "streets-editor-prod")
+- `GOOGLE_APPLICATION_CREDENTIALS`: Path to GCS service account key file (alternative to GCP_SA_KEY)
+- `GCP_SA_KEY`: Path to GCS service account key file (alternative to GOOGLE_APPLICATION_CREDENTIALS)
+
+**Deployment:**
+- `FLASK_ENV`: Environment mode (development/production/testing, affects GCS bucket selection)
+- `PORT`: Port for web server (default: 8080 for Cloud Run, 5000 for local development)
+
+**Testing:**
+- `DATABASE_URL_E2E`: Neon database URL for e2e testing (separate from production)
+- `TEST_BASE_URL`: Base URL for e2e tests (default: "http://localhost:5000")
+- `CI`: Set to any value when running in CI environment (enables test artifacts like videos)
 
 **Environment File Strategy:**
 Use a single `.env` file containing all environments. The application automatically selects the appropriate database:
@@ -116,8 +148,49 @@ The application will be available at `http://localhost:5000`
 
 7. Run tests
 
+The project includes multiple types of tests. Choose the appropriate test command based on what you want to test:
+
+#### Unit Tests (Fast, no external dependencies)
+Run unit tests that test individual components without requiring a running web server:
+```bash
+pytest tests/ -k "not e2e"
+```
+
+#### End-to-End Tests (Slow, requires web server)
+Run full browser-based tests that simulate user interactions. These require the Flask application to be running:
+```bash
+# Option 1: Use the dedicated e2e test script (recommended)
+./run_e2e_tests.sh
+
+# Option 2: Manual setup - start server in one terminal, then run tests in another
+# Terminal 1: Start the server
+python run.py &
+# Terminal 2: Run e2e tests
+pytest tests/e2e/
+```
+
+#### All Tests
+Run the complete test suite (unit tests + e2e tests):
 ```bash
 pytest
+```
+
+#### Specific Test Categories
+```bash
+# Run only API tests
+pytest tests/test_api_*.py
+
+# Run only model tests
+pytest tests/test_models.py
+
+# Run only service tests
+pytest tests/test_services.py
+
+# Run with verbose output
+pytest -v
+
+# Run with coverage report
+pytest --cov=app --cov-report=html
 ```
 
 ### CLI Commands
@@ -246,6 +319,41 @@ gcloud run deploy streets-editor \
   --max-instances=10 \
   --timeout=1200
 ```
+
+#### GitHub Actions Configuration
+
+Configure these **secrets** in your repository settings (Settings → Secrets and variables → Actions):
+
+**Required Secrets:**
+- `GCP_SA_KEY`: JSON key for your Google Cloud service account
+- `DATABASE_URL`: Production Neon PostgreSQL connection string
+- `DATABASE_URL_E2E`: E2E testing Neon database URL
+- `FLASK_SECRET_KEY`: Random secret key (generate with `openssl rand -hex 32`)
+- `OPENROUTER_API_KEY`: Your OpenRouter API key
+
+**Repository Variables:**
+- `GCP_PROJECT_ID`: Your Google Cloud Project ID
+- `GCP_REGION`: Your preferred Google Cloud region (e.g., `europe-west1`)
+
+#### CI Environment Variables
+
+The GitHub Actions CI pipeline automatically sets these environment variables for testing:
+
+**Unit Tests:**
+- `SECRET_KEY`: test-secret-key
+- `OPENROUTER_API_KEY`: From repository secrets
+- `FLASK_ENV`: testing
+- `GCP_PROJECT_ID`: test-project-id (required for GCS service initialization)
+- `EXTRACTION_MODEL`: google/gemini-2.5-pro
+
+**E2E Tests:**
+- `SECRET_KEY`: test-secret-key
+- `OPENROUTER_API_KEY`: From repository secrets
+- `FLASK_ENV`: testing
+- `FLASK_APP`: run.py
+- `DATABASE_URL`: From DATABASE_URL_E2E secret
+- `GCP_PROJECT_ID`: test-project-id (required for GCS service initialization)
+- `EXTRACTION_MODEL`: google/gemini-2.5-pro
 
 #### Environment Variables
 

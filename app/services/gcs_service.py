@@ -22,9 +22,9 @@ class GCSService:
 
     def _init_client(self, app):
         """Initialize the GCS client with app config."""
-        self.project_id = app.config.get("GCS_PROJECT_ID")
+        self.project_id = app.config.get("GCP_PROJECT_ID")
         if not self.project_id:
-            raise ValueError("GCS_PROJECT_ID not configured")
+            raise ValueError("GCP_PROJECT_ID not configured")
 
         # Initialize client with service account key if provided
         credentials_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")

@@ -14,6 +14,8 @@ jobs:
       SECRET_KEY: test-secret-key
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
       FLASK_ENV: testing
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      EXTRACTION_MODEL: google/gemini-2.5-pro
 
     steps:
     - name: Checkout code
@@ -57,6 +59,8 @@ jobs:
       FLASK_ENV: testing
       FLASK_APP: run.py
       DATABASE_URL: ${{ secrets.DATABASE_URL_E2E }}
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      EXTRACTION_MODEL: google/gemini-2.5-pro
 
     steps:
     - name: Checkout code

@@ -28,7 +28,7 @@ jobs:
       uses: google-github-actions/setup-gcloud@v2
       with:
         service_account_key: ${{ secrets.GCP_SA_KEY }}
-        project_id: ${{ secrets.GCP_PROJECT_ID }}
+        project_id: ${{ vars.GCP_PROJECT_ID }}
 
     - name: Configure Docker
       run: gcloud auth configure-docker --quiet
@@ -45,15 +45,15 @@ jobs:
     - name: Build and push Docker image
       run: |
         gcloud builds submit \
-          --tag gcr.io/${{ secrets.GCP_PROJECT_ID }}/streets-editor:${{ steps.image-tag.outputs.tag }} \
+          --tag gcr.io/${{ vars.GCP_PROJECT_ID }}/streets-editor:${{ steps.image-tag.outputs.tag }} \
           --timeout=1200
 
     - name: Deploy to Cloud Run
       run: |
         gcloud run deploy streets-editor \
-          --image gcr.io/${{ secrets.GCP_PROJECT_ID }}/streets-editor:${{ steps.image-tag.outputs.tag }} \
+          --image gcr.io/${{ vars.GCP_PROJECT_ID }}/streets-editor:${{ steps.image-tag.outputs.tag }} \
           --platform managed \
-          --region ${{ secrets.GCP_REGION }} \
+          --region ${{ vars.GCP_REGION }} \
           --allow-unauthenticated \
           --set-env-vars="DATABASE_URL=${{ secrets.DATABASE_URL }}" \
           --set-env-vars="SECRET_KEY=${{ secrets.FLASK_SECRET_KEY }}" \
@@ -66,7 +66,7 @@ jobs:
 
     - name: Get service URL
       run: |
-        SERVICE_URL=$(gcloud run services describe streets-editor --region=${{ secrets.GCP_REGION }} --format="value(status.url)")
+        SERVICE_URL=$(gcloud run services describe streets-editor --region=${{ vars.GCP_REGION }} --format="value(status.url)")
         echo "🚀 Deployment successful! Service available at: $SERVICE_URL"
         echo "SERVICE_URL=$SERVICE_URL" >> $GITHUB_ENV
 

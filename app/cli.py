@@ -278,7 +278,7 @@ def register_cli_commands(app):
             gcs_service = GCSService(app)
             gcs_service._ensure_initialized()
             client = gcs_service.client
-            project_id = app.config.get("GCS_PROJECT_ID")
+            project_id = app.config.get("GCP_PROJECT_ID")
 
             # Create bucket in Europe West 1 region
             click.echo(f"Creating bucket '{bucket_name}' in europe-west1 region...")
