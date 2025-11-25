@@ -151,6 +151,7 @@ streets-editor/
 ├── migrations/          # Database migrations
 ├── requirements.txt     # Python dependencies
 ├── Dockerfile          # Docker configuration
+├── setup-gcp.sh        # Google Cloud setup script
 └── run.py              # Application entry point
 ```
 
@@ -197,7 +198,13 @@ Deploy your application to Google Cloud Run for serverless container execution.
 
 #### Initial Setup
 
-1. **Set up Google Cloud Project:**
+**Option 1: Automated Setup (Recommended)**
+```bash
+# Run the automated setup script
+./setup-gcp.sh
+```
+
+**Option 2: Manual Setup**
 ```bash
 # Set your project ID
 export PROJECT_ID="your-project-id"
@@ -207,6 +214,8 @@ gcloud config set project $PROJECT_ID
 gcloud services enable run.googleapis.com
 gcloud services enable containerregistry.googleapis.com
 gcloud services enable cloudbuild.googleapis.com
+
+# Create service account and generate key (see script for detailed steps)
 ```
 
 2. **Build and Push Container:**

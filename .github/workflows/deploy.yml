@@ -1,0 +1,83 @@
+name: Deploy to Google Cloud Run
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+      tag:
+        description: 'Docker image tag (optional, defaults to commit SHA)'
+        required: false
+        type: string
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Cloud SDK
+      uses: google-github-actions/setup-gcloud@v2
+      with:
+        service_account_key: ${{ secrets.GCP_SA_KEY }}
+        project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+    - name: Configure Docker
+      run: gcloud auth configure-docker --quiet
+
+    - name: Set image tag
+      id: image-tag
+      run: |
+        if [ -n "${{ inputs.tag }}" ]; then
+          echo "tag=${{ inputs.tag }}" >> $GITHUB_OUTPUT
+        else
+          echo "tag=${{ github.sha }}" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Build and push Docker image
+      run: |
+        gcloud builds submit \
+          --tag gcr.io/${{ secrets.GCP_PROJECT_ID }}/streets-editor:${{ steps.image-tag.outputs.tag }} \
+          --timeout=1200
+
+    - name: Deploy to Cloud Run
+      run: |
+        gcloud run deploy streets-editor \
+          --image gcr.io/${{ secrets.GCP_PROJECT_ID }}/streets-editor:${{ steps.image-tag.outputs.tag }} \
+          --platform managed \
+          --region ${{ secrets.GCP_REGION }} \
+          --allow-unauthenticated \
+          --set-env-vars="DATABASE_URL=${{ secrets.DATABASE_URL }}" \
+          --set-env-vars="SECRET_KEY=${{ secrets.FLASK_SECRET_KEY }}" \
+          --set-env-vars="OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}" \
+          --set-env-vars="FLASK_ENV=production" \
+          --memory=1Gi \
+          --cpu=1 \
+          --max-instances=10 \
+          --timeout=1200
+
+    - name: Get service URL
+      run: |
+        SERVICE_URL=$(gcloud run services describe streets-editor --region=${{ secrets.GCP_REGION }} --format="value(status.url)")
+        echo "🚀 Deployment successful! Service available at: $SERVICE_URL"
+        echo "SERVICE_URL=$SERVICE_URL" >> $GITHUB_ENV
+
+    - name: Notify deployment status
+      if: always()
+      run: |
+        if [ "${{ job.status }}" = "success" ]; then
+          echo "✅ Deployment completed successfully"
+          echo "🌐 Service URL: ${{ env.SERVICE_URL }}"
+        else
+          echo "❌ Deployment failed"
+          exit 1
+        fi
