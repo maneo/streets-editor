@@ -114,6 +114,12 @@ The application will be available at `http://localhost:5000`
 4. Review and edit extracted streets
 5. Export your dictionary as TXT or JSON
 
+7. Run tests
+
+```bash
+pytest
+```
+
 ### CLI Commands
 
 #### Development and Testing
