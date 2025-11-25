@@ -34,6 +34,12 @@ class Config:
     # Database batch operations
     BATCH_INSERT_SIZE = int(os.environ.get("BATCH_INSERT_SIZE", 50))
 
+    # Google Cloud Storage
+    GCS_PROJECT_ID = os.environ.get("GCS_PROJECT_ID")
+    GCS_BUCKET_DEV = os.environ.get("GCS_BUCKET_DEV", "streets-editor-dev")
+    GCS_BUCKET_TEST = os.environ.get("GCS_BUCKET_TEST", "streets-editor-test")
+    GCS_BUCKET_PROD = os.environ.get("GCS_BUCKET_PROD", "streets-editor-prod")
+
 
 class DevelopmentConfig(Config):
     """Development configuration."""

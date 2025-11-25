@@ -26,6 +26,11 @@ def create_app(config_name="development"):
     migrate.init_app(app, db)
     login_manager.init_app(app)
 
+    # Initialize services
+    from app.services.gcs_service import GCSService
+
+    app.gcs_service = GCSService()
+
     # Configure Flask-Login
     login_manager.login_view = "auth.login"
     login_manager.login_message = "Please log in to access this page."

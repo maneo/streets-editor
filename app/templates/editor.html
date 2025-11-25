@@ -33,6 +33,30 @@
         </div>
     </div>
 
+    <!-- Source Map Display -->
+    {% if source_map %}
+    <div class="box mb-6">
+        <h2 class="subtitle is-5 has-text-grey-light">Source Map</h2>
+        <div class="content">
+            <p class="has-text-grey">
+                Original file: <strong>{{ source_map.original_filename }}</strong>
+                ({{ source_map.streets_count }} streets extracted)
+            </p>
+            <div class="mt-4">
+                <a href="{{ source_map.gcs_url }}" target="_blank" class="button is-info is-small">
+                    <span class="icon">
+                        <i class="fas fa-external-link-alt"></i>
+                    </span>
+                    <span>View Full Size Map</span>
+                </a>
+            </div>
+            <figure class="image is-16by9 mt-4">
+                <img src="{{ source_map.gcs_url }}" alt="Source map: {{ source_map.original_filename }}" style="object-fit: contain;">
+            </figure>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Add Street Form -->
     <div class="box mb-6">
         <h2 id="formTitle" class="subtitle is-5 has-text-grey-light">Add New Street</h2>

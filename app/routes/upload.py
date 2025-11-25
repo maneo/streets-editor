@@ -6,6 +6,7 @@ from flask import Blueprint, current_app, flash, redirect, render_template, requ
 from flask_login import current_user, login_required
 
 from app import db
+from app.models.source_maps import SourceMaps
 from app.models.street import Street
 from app.services.ai_extraction import extract_streets_from_image
 from app.services.file_handler import save_upload, validate_file
@@ -50,7 +51,19 @@ def upload_file():
         flash(validation_error, "error")
         return redirect(url_for("upload.index"))
 
-    # Save file
+    # Create SourceMaps record first (to get ID for GCS filename)
+    source_map = SourceMaps(
+        user_id=current_user.id,
+        city=city,
+        decade=decade,
+        original_filename=file.filename,
+        gcs_filename="",  # Will be updated after upload
+        gcs_url="",  # Will be updated after upload
+    )
+    db.session.add(source_map)
+    db.session.commit()  # Commit to get the ID
+
+    # Save file locally for extraction
     filepath = save_upload(file, current_user.id)
 
     # Start extraction (this could be async in production)
@@ -63,6 +76,9 @@ def upload_file():
         if not extracted_streets:
             flash("No streets found in the image. You can add them manually.", "warning")
         else:
+            current_app.logger.info(
+                f"AI extraction completed, {len(extracted_streets)} streets found"
+            )
             # Batch insert to prevent timeouts on hosted databases like Neon
             batch_size = current_app.config["BATCH_INSERT_SIZE"]
             inserted_count = 0
@@ -79,6 +95,7 @@ def upload_file():
                         main_name=street_data["main_name"].lower(),
                         main_name_cs=street_data["main_name"],
                         source="ai",
+                        source_map_id=source_map.id,
                     )
                     db.session.add(street)
 
@@ -99,6 +116,30 @@ def upload_file():
                 )
 
             if inserted_count > 0:
+                # Upload file to GCS and update SourceMaps record
+                try:
+                    # Reset file pointer to beginning for GCS upload
+                    file.seek(0)
+                    gcs_filename, gcs_url = current_app.gcs_service.upload_file(
+                        file, source_map.id, file.filename
+                    )
+
+                    # Update SourceMaps record with GCS info
+                    source_map.gcs_filename = gcs_filename
+                    source_map.gcs_url = gcs_url
+                    source_map.streets_count = inserted_count
+                    db.session.commit()
+
+                    current_app.logger.info(f"File uploaded to GCS: {gcs_filename}")
+
+                except Exception as gcs_error:
+                    current_app.logger.error(f"Failed to upload file to GCS: {gcs_error}")
+                    # Don't fail the whole process if GCS upload fails
+                    flash(
+                        "Warning: File extraction succeeded but could not be stored for verification.",
+                        "warning",
+                    )
+
                 flash(f"Successfully extracted {inserted_count} streets!", "success")
                 if inserted_count < len(extracted_streets):
                     flash(
@@ -141,4 +182,11 @@ def editor(city, decade):
         .all()
     )
 
-    return render_template("editor.html", streets=streets, city=city, decade=decade)
+    # Get source map for this city/decade (if exists)
+    source_map = SourceMaps.query.filter_by(
+        user_id=current_user.id, city=city, decade=decade
+    ).first()
+
+    return render_template(
+        "editor.html", streets=streets, city=city, decade=decade, source_map=source_map
+    )

@@ -29,6 +29,7 @@ class Street(db.Model):
     # Metadata
     is_rejected = db.Column(db.Boolean, default=False)
     source = db.Column(db.String(20), default="ai")  # ai, manual
+    source_map_id = db.Column(db.Integer, db.ForeignKey("source_maps.id"), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
