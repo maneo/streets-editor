@@ -4,10 +4,11 @@ Frontend:
 - Bulma (linkowana statycznie, bez customizacji) pozwala na wygodne stylowanie aplikacji
 
 Backend:
-- Jako bazę danych wykorzystamy Postgresql/Supabase
+- Jako bazę danych wykorzystamy Postgresql/Neon
 - Jako warstwę dostępową do bazy SQLAlchemy
 - Całość logiki implementowana w Pythonie przy wsparciu Flaska
 - Rejestracja i autentykacja przy wykorzstaniu modułu Flask-login
+- Przechowywanie plików w Google Cloud Storage
 
 AI - Komunikacja z modelami przez usługę Openrouter.ai:
 - Dostęp do szerokiej gamy modeli (OpenAI, Anthropic, Google i wiele innych), które pozwolą nam znaleźć rozwiązanie zapewniające wysoką efektywność i niskie koszta
@@ -15,4 +16,4 @@ AI - Komunikacja z modelami przez usługę Openrouter.ai:
 
 CI/CD i Hosting:
 - Github Actions do tworzenia pipeline’ów CI/CD
-- DigitalOcean do hostowania aplikacji za pośrednictwem obrazu docker
+- Google Cloud Run do hostowania aplikacji za pośrednictwem obrazu docker
