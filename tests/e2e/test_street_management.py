@@ -42,14 +42,8 @@ def test_edit_existing_street(logged_in_page: Page):
 @pytest.mark.e2e
 def test_delete_street(logged_in_page: Page):
     """Test deleting a street."""
-    # First, create a street by going through the upload flow
-    logged_in_page.goto("/")
-    logged_in_page.fill("#city", "DeleteTestCity")
-    logged_in_page.fill("#decade", "2020-2029")
-
-    # Submit form to go to editor (this creates an empty editor page)
-    logged_in_page.click("button[type='submit']")
-    logged_in_page.wait_for_url("**/editor/DeleteTestCity/2020-2029")
+    # First, go directly to editor to create an empty dictionary
+    logged_in_page.goto("/editor/DeleteTestCity/2020-2029")
 
     # Now add a street manually using the form
     logged_in_page.select_option("#newPrefix", "al.")

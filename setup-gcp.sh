@@ -40,6 +40,40 @@ echo "🔧 Enabling required APIs..."
 gcloud services enable run.googleapis.com
 gcloud services enable containerregistry.googleapis.com
 gcloud services enable cloudbuild.googleapis.com
+gcloud services enable storage.googleapis.com
+
+echo ""
+echo "🪣 Creating Cloud Storage buckets..."
+
+# Create buckets for different environments
+BUCKETS=("streets-editor-dev" "streets-editor-test" "streets-editor-prod")
+
+for bucket in "${BUCKETS[@]}"; do
+    if gsutil ls -b gs://$bucket &> /dev/null; then
+        echo "Bucket gs://$bucket already exists. Skipping creation..."
+    else
+        echo "Creating bucket: gs://$bucket"
+        gsutil mb -p "$PROJECT_ID" gs://$bucket
+    fi
+done
+
+echo ""
+echo "🔓 Configuring public access for buckets..."
+
+# Configure public read access for all buckets
+for bucket in "${BUCKETS[@]}"; do
+    echo "Setting public read access for gs://$bucket"
+    gsutil iam ch allUsers:objectViewer gs://$bucket
+done
+
+echo ""
+echo "⚙️  Enabling uniform bucket-level access..."
+
+# Enable uniform bucket-level access (recommended for new buckets)
+for bucket in "${BUCKETS[@]}"; do
+    echo "Enabling uniform access for gs://$bucket"
+    gsutil bucketpolicyonly set on gs://$bucket
+done
 
 echo ""
 echo "👤 Creating service account for GitHub Actions..."
@@ -91,13 +125,19 @@ rm -f /tmp/sa-key.json
 
 echo ""
 echo "✅ Setup complete!"
+echo "   ✓ Service account created and configured"
+echo "   ✓ Cloud Storage buckets created and configured for public access"
+echo "   ✓ All required APIs enabled"
 echo ""
 echo "📝 Add these secrets to your GitHub repository:"
 echo "   1. GCP_SA_KEY: The JSON key shown above"
 echo "   2. GCP_PROJECT_ID: $PROJECT_ID"
-echo "   3. GCP_REGION: Your preferred region (e.g., europe-west1)"
-echo "   4. DATABASE_URL: Your Neon database connection string"
-echo "   5. FLASK_SECRET_KEY: Generate with 'openssl rand -hex 32'"
-echo "   6. OPENROUTER_API_KEY: Your OpenRouter API key"
+echo "   3. GCS_BUCKET_DEV: streets-editor-dev"
+echo "   4. GCS_BUCKET_TEST: streets-editor-test"
+echo "   5. GCS_BUCKET_PROD: streets-editor-prod"
+echo "   6. GCP_REGION: Your preferred region (e.g., europe-west1)"
+echo "   7. DATABASE_URL: Your Neon database connection string"
+echo "   8. FLASK_SECRET_KEY: Generate with 'openssl rand -hex 32'"
+echo "   9. OPENROUTER_API_KEY: Your OpenRouter API key"
 echo ""
 echo "🚀 You're ready to deploy! Go to GitHub Actions and run the 'Deploy to Google Cloud Run' workflow."

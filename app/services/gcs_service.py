@@ -2,20 +2,37 @@
 
 import os
 
+from flask import current_app
 from google.cloud import storage
 from werkzeug.datastructures import FileStorage
-
-from app import current_app
 
 
 class GCSService:
     """Service for handling Google Cloud Storage operations."""
 
-    def __init__(self):
+    def __init__(self, app=None):
         """Initialize GCS client."""
-        self.project_id = current_app.config.get("GCS_PROJECT_ID")
+        self.app = app
+        if app:
+            self._init_client(app)
+        else:
+            # Lazy initialization - will be done when first method is called
+            self.client = None
+            self.project_id = None
+
+    def _init_client(self, app):
+        """Initialize the GCS client with app config."""
+        self.project_id = app.config.get("GCS_PROJECT_ID")
         if not self.project_id:
             raise ValueError("GCS_PROJECT_ID not configured")
+
+        # Initialize client with service account key if provided
+        credentials_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
+        if credentials_path and os.path.exists(credentials_path):
+            self.client = storage.Client.from_service_account_json(credentials_path)
+        else:
+            # Use default credentials (for GCP environments)
+            self.client = storage.Client(project=self.project_id)
 
         # Initialize client with service account key if provided
         credentials_path = os.environ.get("GCP_SA_KEY")
@@ -25,16 +42,41 @@ class GCSService:
             # Use default credentials (for GCP environments)
             self.client = storage.Client(project=self.project_id)
 
+    def _ensure_initialized(self):
+        """Ensure the GCS client is initialized."""
+        if self.client is None:
+            if self.app:
+                self._init_client(self.app)
+            else:
+                # Try to get current_app if available
+                from flask import current_app
+
+                self._init_client(current_app)
+
     def get_bucket_name(self) -> str:
         """Get the appropriate bucket name based on environment."""
+        self._ensure_initialized()
+
         env = os.environ.get("FLASK_ENV", "development")
 
         if env == "production":
-            bucket_name = current_app.config.get("GCS_BUCKET_PROD")
+            bucket_name = (
+                self.app.config.get("GCS_BUCKET_PROD")
+                if self.app
+                else current_app.config.get("GCS_BUCKET_PROD")
+            )
         elif env == "testing":
-            bucket_name = current_app.config.get("GCS_BUCKET_TEST")
+            bucket_name = (
+                self.app.config.get("GCS_BUCKET_TEST")
+                if self.app
+                else current_app.config.get("GCS_BUCKET_TEST")
+            )
         else:  # development
-            bucket_name = current_app.config.get("GCS_BUCKET_DEV")
+            bucket_name = (
+                self.app.config.get("GCS_BUCKET_DEV")
+                if self.app
+                else current_app.config.get("GCS_BUCKET_DEV")
+            )
 
         if not bucket_name:
             raise ValueError(f"GCS bucket not configured for environment: {env}")
@@ -55,6 +97,7 @@ class GCSService:
         Returns:
             tuple: (gcs_filename, public_url)
         """
+        self._ensure_initialized()
         bucket_name = self.get_bucket_name()
         bucket = self.client.bucket(bucket_name)
 
@@ -65,8 +108,10 @@ class GCSService:
 
         blob = bucket.blob(gcs_filename)
         blob.upload_from_file(file, content_type=file.content_type)
-        blob.make_public()
-        public_url = blob.public_url
+
+        # For buckets with uniform bucket-level access, construct public URL directly
+        # The bucket should be configured with public read access at bucket level
+        public_url = f"https://storage.googleapis.com/{bucket_name}/{gcs_filename}"
 
         return gcs_filename, public_url
 
@@ -80,11 +125,14 @@ class GCSService:
         Returns:
             bool: True if file exists
         """
+        self._ensure_initialized()
         try:
             bucket_name = self.get_bucket_name()
             bucket = self.client.bucket(bucket_name)
             blob = bucket.blob(gcs_filename)
             return blob.exists()
         except Exception as e:
+            from flask import current_app
+
             current_app.logger.error(f"Failed to check if file {gcs_filename} exists in GCS: {e}")
             return False

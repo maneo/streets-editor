@@ -99,7 +99,7 @@ Important:
 
     for attempt in range(max_retries + 1):
         try:
-            response = requests.post(base_url, headers=headers, json=payload, timeout=300)
+            response = requests.post(base_url, headers=headers, json=payload, timeout=1200)
 
             # Handle rate limiting specifically
             if response.status_code == 429:

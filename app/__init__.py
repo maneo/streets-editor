@@ -8,6 +8,7 @@ from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
 
 from app.config import config
+from app.services.gcs_service import GCSService
 
 # Initialize extensions
 db = SQLAlchemy()
@@ -27,9 +28,7 @@ def create_app(config_name="development"):
     login_manager.init_app(app)
 
     # Initialize services
-    from app.services.gcs_service import GCSService
-
-    app.gcs_service = GCSService()
+    app.gcs_service = GCSService(app)
 
     # Configure Flask-Login
     login_manager.login_view = "auth.login"
