@@ -10,7 +10,6 @@ on:
         type: choice
         options:
           - production
-          - staging
       tag:
         description: 'Docker image tag (optional, defaults to commit SHA)'
         required: false

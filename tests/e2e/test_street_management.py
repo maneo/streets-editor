@@ -42,34 +42,50 @@ def test_edit_existing_street(logged_in_page: Page):
 @pytest.mark.e2e
 def test_delete_street(logged_in_page: Page):
     """Test deleting a street."""
-    logged_in_page.goto("/editor/TestCity/2020-2029")
+    # First, create a street by going through the upload flow
+    logged_in_page.goto("/")
+    logged_in_page.fill("#city", "DeleteTestCity")
+    logged_in_page.fill("#decade", "2020-2029")
 
-    # Wait for streets to load
+    # Submit form to go to editor (this creates an empty editor page)
+    logged_in_page.click("button[type='submit']")
+    logged_in_page.wait_for_url("**/editor/DeleteTestCity/2020-2029")
+
+    # Now add a street manually using the form
+    logged_in_page.select_option("#newPrefix", "al.")
+    logged_in_page.fill("#newStreetName", "Street to Delete")
+
+    # Submit the form - this should create the street and reload the page
+    logged_in_page.click("#submitButton")
+
+    # Wait for page reload after form submission
     logged_in_page.wait_for_load_state("networkidle")
 
-    street_rows = logged_in_page.locator("tr[data-street-id]")
-    initial_count = street_rows.count()
+    # Wait for the street to appear in the table
+    logged_in_page.wait_for_selector("tr[data-street-id]", timeout=10000)
 
-    if initial_count == 0:
-        # Add a street to delete
-        logged_in_page.select_option("#newPrefix", "al.")
-        logged_in_page.fill("#newStreetName", "Street to Delete")
-        logged_in_page.click("#submitButton")
-        logged_in_page.wait_for_load_state("networkidle")
-        initial_count = 1
+    # Verify we have the street
+    street_rows = logged_in_page.locator("tr[data-street-id]")
+    assert street_rows.count() > 0, "Street was not created successfully"
 
     # Get the street ID before deleting
     first_street_row = logged_in_page.locator("tr[data-street-id]").first
     street_id = first_street_row.get_attribute("data-street-id")
+    assert (
+        street_id is not None
+    ), f"Could not get street ID. Page content: {logged_in_page.content()}"
 
     # Handle confirmation dialog before clicking
     logged_in_page.on("dialog", lambda dialog: dialog.accept())
 
     # Click delete on the first street
-    logged_in_page.click("tr[data-street-id] button:has-text('Delete')")
+    delete_button = logged_in_page.locator("tr[data-street-id] button:has-text('Delete')").first
+    delete_button.click()
 
     # Wait for the row to be removed from DOM
-    logged_in_page.wait_for_selector(f"tr[data-street-id='{street_id}']", state="detached")
+    logged_in_page.wait_for_selector(
+        f"tr[data-street-id='{street_id}']", state="detached", timeout=5000
+    )
 
     # Verify the specific row is gone
     expect(logged_in_page.locator(f"tr[data-street-id='{street_id}']")).not_to_be_visible()
