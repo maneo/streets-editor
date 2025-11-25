@@ -65,9 +65,7 @@ def test_delete_street(logged_in_page: Page):
     # Get the street ID before deleting
     first_street_row = logged_in_page.locator("tr[data-street-id]").first
     street_id = first_street_row.get_attribute("data-street-id")
-    assert (
-        street_id is not None
-    ), f"Could not get street ID. Page content: {logged_in_page.content()}"
+    assert street_id is not None, f"Could not get street ID: {logged_in_page.content()}"
 
     # Handle confirmation dialog before clicking
     logged_in_page.on("dialog", lambda dialog: dialog.accept())
