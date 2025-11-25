@@ -30,6 +30,10 @@ class GCSService:
         credentials_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
         if credentials_path and os.path.exists(credentials_path):
             self.client = storage.Client.from_service_account_json(credentials_path)
+        elif app.config.get("FLASK_ENV") == "testing":
+            # In testing environment, don't initialize actual GCS client
+            # Just set a mock client or None to avoid authentication errors
+            self.client = None
         else:
             # Use default credentials (for GCP environments)
             self.client = storage.Client(project=self.project_id)
@@ -98,6 +102,15 @@ class GCSService:
             tuple: (gcs_filename, public_url)
         """
         self._ensure_initialized()
+
+        # In testing environment, skip actual upload
+        if self.client is None:
+            # Return mock data for testing
+            _, ext = os.path.splitext(original_filename)
+            gcs_filename = f"{source_map_id}{ext}"
+            public_url = f"https://storage.googleapis.com/test-bucket/{gcs_filename}"
+            return gcs_filename, public_url
+
         bucket_name = self.get_bucket_name()
         bucket = self.client.bucket(bucket_name)
 
@@ -126,6 +139,11 @@ class GCSService:
             bool: True if file exists
         """
         self._ensure_initialized()
+
+        # In testing environment, return False for file existence checks
+        if self.client is None:
+            return False
+
         try:
             bucket_name = self.get_bucket_name()
             bucket = self.client.bucket(bucket_name)

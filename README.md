@@ -343,7 +343,7 @@ The GitHub Actions CI pipeline automatically sets these environment variables fo
 - `SECRET_KEY`: test-secret-key
 - `OPENROUTER_API_KEY`: From repository secrets
 - `FLASK_ENV`: testing
-- `GCP_PROJECT_ID`: test-project-id (required for GCS service initialization)
+- `GCP_PROJECT_ID`: ${{ vars.GCP_PROJECT_ID }} (required for GCS service initialization, uses mock client in testing)
 - `EXTRACTION_MODEL`: google/gemini-2.5-pro
 
 **E2E Tests:**
@@ -352,7 +352,7 @@ The GitHub Actions CI pipeline automatically sets these environment variables fo
 - `FLASK_ENV`: testing
 - `FLASK_APP`: run.py
 - `DATABASE_URL`: From DATABASE_URL_E2E secret
-- `GCP_PROJECT_ID`: test-project-id (required for GCS service initialization)
+- `GCP_PROJECT_ID`: ${{ vars.GCP_PROJECT_ID }} (required for GCS service initialization, uses mock client in testing)
 - `EXTRACTION_MODEL`: google/gemini-2.5-pro
 
 #### Environment Variables
