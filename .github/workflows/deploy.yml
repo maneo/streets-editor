@@ -46,10 +46,9 @@ jobs:
     - name: Build and push Docker image
       run: |
         gcloud builds submit \
-          --tag gcr.io/${{ vars.GCP_PROJECT_ID }}/streets-editor:${{ steps.image-tag.outputs.tag }} \
-          --timeout=1200 \
-          --service-account=streets-editor-deployer@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com \
-          --logging=CLOUD_LOGGING_ONLY
+          --config cloudbuild.yaml \
+          --substitutions=_TAG=${{ steps.image-tag.outputs.tag }} \
+          --service-account=streets-editor-deployer@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com
 
     - name: Deploy to Cloud Run
       run: |
@@ -62,6 +61,8 @@ jobs:
           --set-env-vars="SECRET_KEY=${{ secrets.FLASK_SECRET_KEY }}" \
           --set-env-vars="OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}" \
           --set-env-vars="FLASK_ENV=production" \
+          --set-env-vars="GCP_PROJECT_ID=${{ vars.GCP_PROJECT_ID }}" \
+          --set-env-vars="GCS_BUCKET_PROD=${{ vars.GCS_BUCKET_PROD }}" \
           --memory=1Gi \
           --cpu=1 \
           --max-instances=10 \

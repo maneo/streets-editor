@@ -8,6 +8,14 @@
     <div class="box mb-6">
         <h2 class="subtitle is-5">Upload New Map</h2>
 
+        <p class="content is-small mb-4">
+            Need an example file?
+            <a href="{{ url_for('static', filename='uploads/stare_ miasto_zamosc.png') }}" download>
+                <span class="icon is-small"><i class="fas fa-download"></i></span>
+                <span>Download example city map</span>
+            </a>
+        </p>
+
         <form method="POST" action="{{ url_for('upload.upload_file') }}" enctype="multipart/form-data">
             <div class="field">
                 <label for="city" class="label">City</label>
