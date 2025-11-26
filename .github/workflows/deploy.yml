@@ -48,7 +48,8 @@ jobs:
         gcloud builds submit \
           --tag gcr.io/${{ vars.GCP_PROJECT_ID }}/streets-editor:${{ steps.image-tag.outputs.tag }} \
           --timeout=1200 \
-          --service-account=streets-editor-deployer@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com
+          --service-account=streets-editor-deployer@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com \
+          --logging=CLOUD_LOGGING_ONLY
 
     - name: Deploy to Cloud Run
       run: |
