@@ -106,6 +106,10 @@ gcloud projects add-iam-policy-binding "$PROJECT_ID" \
     --member="serviceAccount:$SA_EMAIL" \
     --role="roles/cloudbuild.builds.builder"
 
+gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+    --member="serviceAccount:$SA_EMAIL" \
+    --role="roles/iam.serviceAccountUser"
+
 echo ""
 echo "🔐 Creating service account key..."
 echo "⚠️  WARNING: This key will be displayed below. Copy it immediately and add to GitHub Secrets!"
