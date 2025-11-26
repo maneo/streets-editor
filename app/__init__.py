@@ -20,15 +20,16 @@ def create_app(config_name="development"):
     """Create and configure the Flask application."""
     app = Flask(__name__)
     # Load configuration
-    app.config.from_object(config[config_name]())
+    config_obj = config[config_name]()
+    app.config.from_object(config_obj)
 
     # Initialize extensions
     db.init_app(app)
     migrate.init_app(app, db)
     login_manager.init_app(app)
 
-    # Initialize services
-    app.gcs_service = GCSService(app)
+    # Initialize services using config factory method
+    app.gcs_service = config_obj.create_gcs_service(app)
 
     # Configure Flask-Login
     login_manager.login_view = "auth.login"

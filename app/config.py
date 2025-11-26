@@ -10,6 +10,7 @@ Environment Variables:
 """
 
 import os
+from unittest.mock import Mock
 
 from dotenv import load_dotenv
 
@@ -35,10 +36,24 @@ class Config:
     BATCH_INSERT_SIZE = int(os.environ.get("BATCH_INSERT_SIZE", 50))
 
     # Google Cloud Storage
-    GCP_PROJECT_ID = os.environ.get("GCP_PROJECT_ID")
+    GCP_PROJECT_ID = os.environ.get("GCP_PROJECT_ID", "gazety-poznan-pl")
     GCS_BUCKET_DEV = os.environ.get("GCS_BUCKET_DEV", "streets-editor-dev")
     GCS_BUCKET_TEST = os.environ.get("GCS_BUCKET_TEST", "streets-editor-test")
     GCS_BUCKET_PROD = os.environ.get("GCS_BUCKET_PROD", "streets-editor-prod")
+
+    def get_gcs_bucket_name(self) -> str:
+        """Get the GCS bucket name for this configuration."""
+        bucket_name = self.GCS_BUCKET_DEV
+        if not bucket_name:
+            raise ValueError("GCS bucket not configured for development environment")
+        return bucket_name
+
+    def create_gcs_service(self, app):
+        """Factory method to create appropriate GCS service for the environment."""
+        from app.services.gcs_service import GCSService
+
+        bucket_name = self.get_gcs_bucket_name()
+        return GCSService(app, bucket_name)
 
 
 class DevelopmentConfig(Config):
@@ -67,6 +82,13 @@ class ProductionConfig(Config):
             )
         self.SQLALCHEMY_DATABASE_URI = database_url
 
+    def get_gcs_bucket_name(self) -> str:
+        """Get the GCS bucket name for production."""
+        bucket_name = self.GCS_BUCKET_PROD
+        if not bucket_name:
+            raise ValueError("GCS bucket not configured for production environment")
+        return bucket_name
+
 
 class TestingConfig(Config):
     """Testing configuration."""
@@ -79,6 +101,35 @@ class TestingConfig(Config):
         # Use Neon database for e2e tests, fallback to in-memory SQLite for unit tests
         database_url = os.environ.get("DATABASE_URL") or "sqlite:///:memory:"
         self.SQLALCHEMY_DATABASE_URI = database_url
+
+    def get_gcs_bucket_name(self) -> str:
+        """Get the GCS bucket name for testing."""
+        bucket_name = self.GCS_BUCKET_TEST
+        if not bucket_name:
+            raise ValueError("GCS bucket not configured for testing environment")
+        return bucket_name
+
+    def create_gcs_service(self, app):
+        """Return mocked GCS service for testing."""
+        mock_service = Mock()
+
+        # Set bucket_name attribute for consistency with real service
+        mock_service.bucket_name = self.get_gcs_bucket_name()
+
+        # Configure upload_file to return predictable values
+        mock_service.upload_file.return_value = (
+            "mock_123.png",
+            "https://mock-storage/mock_123.png",
+        )
+
+        # Configure file_exists for different test cases
+        mock_service.file_exists.return_value = False
+
+        # You can make it configurable for different tests
+        if hasattr(app.config, "MOCK_GCS_ERROR"):
+            mock_service.upload_file.side_effect = Exception("Mock GCS error")
+
+        return mock_service
 
 
 # Configuration dictionary

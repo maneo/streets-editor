@@ -10,7 +10,6 @@ from app.models.source_maps import SourceMaps
 from app.models.street import Street
 from app.models.user import User
 from app.services.ai_extraction import extract_streets_from_image
-from app.services.gcs_service import GCSService
 
 
 def register_cli_commands(app):
@@ -223,8 +222,7 @@ def register_cli_commands(app):
 
         try:
             # Initialize GCS client
-            gcs_service = GCSService(app)
-            gcs_service._ensure_initialized()
+            gcs_service = app.gcs_service
             client = gcs_service.client
 
             # Get bucket
@@ -275,8 +273,7 @@ def register_cli_commands(app):
 
         try:
             # Initialize GCS client
-            gcs_service = GCSService(app)
-            gcs_service._ensure_initialized()
+            gcs_service = app.gcs_service
             client = gcs_service.client
             project_id = app.config.get("GCP_PROJECT_ID")
 
