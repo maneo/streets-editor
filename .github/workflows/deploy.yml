@@ -30,9 +30,6 @@ jobs:
         service_account_key: ${{ secrets.GCP_SA_KEY }}
         project_id: ${{ vars.GCP_PROJECT_ID }}
 
-    - name: Configure Docker
-      run: gcloud auth configure-docker --quiet
-
     - name: Set image tag
       id: image-tag
       run: |
