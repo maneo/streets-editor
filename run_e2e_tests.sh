@@ -10,6 +10,12 @@ else
     echo "📦 Using system Python environment..."
 fi
 
+# Force testing environment so run.py loads TestingConfig
+export FLASK_ENV=testing
+
+# NOTE: DATABASE_URL_E2E is picked up from .env automatically.
+# This allows using the remote Neon DB defined there.
+
 echo "🚀 Starting Flask application..."
 python run.py &
 FLASK_PID=$!
@@ -25,6 +31,8 @@ echo "🛑 Stopping Flask application..."
 kill $FLASK_PID
 
 echo "🧹 Cleaning up test database..."
+
+# Use python to drop tables (works for both SQLite and Postgres)
 python -c "
 from app import create_app, db
 app = create_app('testing')

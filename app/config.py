@@ -98,9 +98,9 @@ class TestingConfig(Config):
 
     def __init__(self):
         super().__init__()
-        # Use Neon database for e2e tests, fallback to in-memory SQLite for unit tests
-        database_url = os.environ.get("DATABASE_URL") or "sqlite:///:memory:"
-        self.SQLALCHEMY_DATABASE_URI = database_url
+        # Use Neon database for e2e tests (DATABASE_URL_E2E).
+        # Fallback to in-memory SQLite for unit tests or if not configured.
+        self.SQLALCHEMY_DATABASE_URI = os.environ.get("DATABASE_URL_E2E") or "sqlite:///:memory:"
 
     def get_gcs_bucket_name(self) -> str:
         """Get the GCS bucket name for testing."""
