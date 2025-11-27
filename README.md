@@ -150,29 +150,18 @@ The application will be available at `http://localhost:5000`
 
 The project includes multiple types of tests. Choose the appropriate test command based on what you want to test:
 
-#### Unit Tests (Fast, no external dependencies)
+#### Unit Tests
 Run unit tests that test individual components without requiring a running web server:
 ```bash
 pytest tests/ -k "not e2e"
 ```
 
-#### End-to-End Tests (Slow, requires web server)
+#### End-to-End Tests
 Run full browser-based tests that simulate user interactions. These require the Flask application to be running:
 ```bash
-# Option 1: Use the dedicated e2e test script (recommended)
+# Please use the dedicated e2e test script (recommended)
 ./run_e2e_tests.sh
 
-# Option 2: Manual setup - start server in one terminal, then run tests in another
-# Terminal 1: Start the server
-python run.py &
-# Terminal 2: Run e2e tests
-pytest tests/e2e/
-```
-
-#### All Tests
-Run the complete test suite (unit tests + e2e tests):
-```bash
-pytest
 ```
 
 #### Specific Test Categories
@@ -185,12 +174,6 @@ pytest tests/test_models.py
 
 # Run only service tests
 pytest tests/test_services.py
-
-# Run with verbose output
-pytest -v
-
-# Run with coverage report
-pytest --cov=app --cov-report=html
 ```
 
 ### CLI Commands
@@ -276,25 +259,9 @@ Deploy your application to Google Cloud Run for serverless container execution.
 - Docker configured for Google Container Registry
 
 #### Initial Setup
-
-**Option 1: Automated Setup (Recommended)**
 ```bash
 # Run the automated setup script
 ./setup-gcp.sh
-```
-
-**Option 2: Manual Setup**
-```bash
-# Set your project ID
-export PROJECT_ID="your-project-id"
-gcloud config set project $PROJECT_ID
-
-# Enable required APIs
-gcloud services enable run.googleapis.com
-gcloud services enable containerregistry.googleapis.com
-gcloud services enable cloudbuild.googleapis.com
-
-# Create service account and generate key (see script for detailed steps)
 ```
 
 2. **Build and Push Container:**
@@ -372,14 +339,6 @@ gcloud builds submit --tag gcr.io/$PROJECT_ID/streets-editor:v2 --no-cache .
 
 # Update service
 gcloud run deploy streets-editor --image gcr.io/$PROJECT_ID/streets-editor:v2
-```
-
-## Testing
-
-Run tests with pytest:
-
-```bash
-pytest
 ```
 
 ## License
