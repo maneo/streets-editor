@@ -43,7 +43,7 @@ def create_app(config_name="development"):
         return User.query.get(int(user_id))
 
     # Import models (required for Flask-Migrate)
-    from app.models import street, user
+    from app.models import source_maps, street, user
 
     # Register blueprints
     from app.routes import api_dictionaries, api_streets, auth, upload
@@ -59,8 +59,8 @@ def create_app(config_name="development"):
     register_cli_commands(app)
 
     # Create database tables
-    # with app.app_context():
-    #     if config_name in ["development", "testing"]:
-    #         db.create_all()
+    with app.app_context():
+        if config_name in ["development", "testing"]:
+            db.create_all()
 
     return app
