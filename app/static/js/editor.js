@@ -15,7 +15,7 @@ async function editStreetInForm(streetId) {
         // Fill form fields
         document.getElementById('editingStreetId').value = streetId;
         document.getElementById('newPrefix').value = streetData.prefix;
-        document.getElementById('newStreetName').value = streetData.main_name;
+        document.getElementById('newStreetName').value = streetData.main_name_cs;
 
         // Convert arrays back to comma-separated strings
         const variantsStr = streetData.variants ? streetData.variants.join(', ') : '';
@@ -97,7 +97,7 @@ document.getElementById('addStreetForm').addEventListener('submit', async functi
                 },
                 body: JSON.stringify({
                     prefix: prefix,
-                    main_name: mainName,
+                    main_name_cs: mainName,
                     variants: variants,
                     misspellings: misspellings
                 })
@@ -113,7 +113,7 @@ document.getElementById('addStreetForm').addEventListener('submit', async functi
                     city: CITY,
                     decade: DECADE,
                     prefix: prefix,
-                    main_name: mainName,
+                    main_name_cs: mainName,
                     variants: variants,
                     misspellings: misspellings
                 })

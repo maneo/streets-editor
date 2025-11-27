@@ -114,7 +114,7 @@ class TestStreetsAPIAuth:
             db.session.commit()
             street_id = street.id
 
-        response = client.put(f"/api/streets/{street_id}", json={"main_name": "Updated Street"})
+        response = client.put(f"/api/streets/{street_id}", json={"main_name_cs": "Updated Street"})
         # Flask-Login redirects to login instead of 401
         assert response.status_code == 302
 
@@ -154,7 +154,7 @@ class TestStreetsAPICrud:
                 "city": "Poznań",
                 "decade": "1940-1949",
                 "prefix": "ul.",
-                "main_name": "Marszałkowska",
+                "main_name_cs": "Marszałkowska",
                 "variants": ["Marsa"],
                 "misspellings": ["Marszałkowskia"],
             },
@@ -179,7 +179,7 @@ class TestStreetsAPICrud:
         """Test street creation with minimal required data."""
         response = auth_client.post(
             "/api/streets",
-            json={"city": "Poznań", "decade": "1940-1949", "main_name": "Test Street"},
+            json={"city": "Poznań", "decade": "1940-1949", "main_name_cs": "Test Street"},
         )
 
         assert response.status_code == 201
@@ -192,13 +192,13 @@ class TestStreetsAPICrud:
         # Create first street
         auth_client.post(
             "/api/streets",
-            json={"city": "Poznań", "decade": "1940-1949", "main_name": "Marszałkowska"},
+            json={"city": "Poznań", "decade": "1940-1949", "main_name_cs": "Marszałkowska"},
         )
 
         # Try to create duplicate
         response = auth_client.post(
             "/api/streets",
-            json={"city": "Poznań", "decade": "1940-1949", "main_name": "Marszałkowska"},
+            json={"city": "Poznań", "decade": "1940-1949", "main_name_cs": "Marszałkowska"},
         )
 
         assert response.status_code == 400
@@ -209,17 +209,17 @@ class TestStreetsAPICrud:
         """Test street creation with missing required fields."""
         # Missing city
         response = auth_client.post(
-            "/api/streets", json={"decade": "1940-1949", "main_name": "Test Street"}
+            "/api/streets", json={"decade": "1940-1949", "main_name_cs": "Test Street"}
         )
         assert response.status_code == 400
 
         # Missing decade
         response = auth_client.post(
-            "/api/streets", json={"city": "Poznań", "main_name": "Test Street"}
+            "/api/streets", json={"city": "Poznań", "main_name_cs": "Test Street"}
         )
         assert response.status_code == 400
 
-        # Missing main_name
+        # Missing main_name_cs
         response = auth_client.post("/api/streets", json={"city": "Poznań", "decade": "1940-1949"})
         assert response.status_code == 400
 
@@ -308,7 +308,7 @@ class TestStreetsAPICrud:
             f"/api/streets/{street_id}",
             json={
                 "prefix": "pl.",
-                "main_name": "Marszałkowska Square",
+                "main_name_cs": "Marszałkowska Square",
                 "variants": ["Marsa", "Marsz"],
                 "misspellings": ["Marszałkowskia", "Marszałkowska"],
             },

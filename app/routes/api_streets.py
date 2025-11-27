@@ -20,16 +20,16 @@ def add_street():
     city = data.get("city")
     decade = data.get("decade")
     prefix = data.get("prefix", "ul.")
-    main_name = data.get("main_name", "").strip()
+    main_name_cs = data.get("main_name_cs", "").strip()
     variants = data.get("variants", [])
     misspellings = data.get("misspellings", [])
 
-    if not city or not decade or not main_name:
-        return jsonify({"error": "City, decade, and main_name are required."}), 400
+    if not city or not decade or not main_name_cs:
+        return jsonify({"error": "City, decade, and main_name_cs are required."}), 400
 
     # Check for duplicates
     existing = Street.query.filter_by(
-        user_id=current_user.id, city=city, decade=decade, main_name=main_name.lower()
+        user_id=current_user.id, city=city, decade=decade, main_name=main_name_cs.lower()
     ).first()
 
     if existing:
@@ -40,8 +40,8 @@ def add_street():
         city=city,
         decade=decade,
         prefix=prefix,
-        main_name=main_name.lower(),
-        main_name_cs=main_name,
+        main_name=main_name_cs.lower(),
+        main_name_cs=main_name_cs,
         variants=json.dumps(variants),
         misspellings=json.dumps(misspellings),
         source="manual",
@@ -86,14 +86,14 @@ def update_street(street_id):
 
     if "prefix" in data:
         street.prefix = data["prefix"]
-    if "main_name" in data:
-        new_name = data["main_name"].strip()
+    if "main_name_cs" in data:
+        new_name_cs = data["main_name_cs"].strip()
         existing = (
             Street.query.filter_by(
                 user_id=current_user.id,
                 city=street.city,
                 decade=street.decade,
-                main_name=new_name.lower(),
+                main_name=new_name_cs.lower(),
             )
             .filter(Street.id != street_id)
             .first()
@@ -102,8 +102,8 @@ def update_street(street_id):
         if existing:
             return jsonify({"error": "Street with this name already exists."}), 400
 
-        street.main_name = new_name.lower()
-        street.main_name_cs = new_name
+        street.main_name = new_name_cs.lower()
+        street.main_name_cs = new_name_cs
 
     if "variants" in data:
         street.variants = json.dumps(data["variants"])
