@@ -7,6 +7,7 @@ from flask import Blueprint, jsonify, request, send_file
 from flask_login import current_user, login_required
 from sqlalchemy import case, func
 
+from app import db
 from app.models.street import Street
 from app.services.export_service import generate_txt_export
 
@@ -176,3 +177,37 @@ def dictionary_streets_txt(city, decade):
         as_attachment=True,
         download_name=filename,
     )
+
+
+@bp.route("/dictionaries/<city>/<decade>", methods=["DELETE"])
+@login_required
+def delete_dictionary(city, decade):
+    """Delete all streets and source maps for a dictionary (city + decade combination)."""
+    from app.models.source_maps import SourceMaps
+
+    # Verify that the dictionary exists and belongs to the current user
+    streets_count = Street.query.filter_by(
+        user_id=current_user.id, city=city, decade=decade, is_rejected=False
+    ).count()
+
+    if streets_count == 0:
+        return _json_error("Dictionary not found or no streets to delete.", 404)
+
+    # Delete all streets (hard delete)
+    deleted_total = Street.query.filter_by(
+        user_id=current_user.id, city=city, decade=decade
+    ).delete(synchronize_session=False)
+
+    # Delete associated source maps (hard delete)
+    SourceMaps.query.filter_by(user_id=current_user.id, city=city, decade=decade).delete()
+
+    # Commit all changes
+    db.session.commit()
+
+    return jsonify(
+        {
+            "message": f"Dictionary '{city} {decade}' and all associated data deleted successfully.",
+            "deleted_streets": deleted_total,
+            "deleted_active_streets": streets_count,
+        }
+    ), 200

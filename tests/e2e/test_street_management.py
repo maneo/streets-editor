@@ -98,3 +98,62 @@ def test_navigation_between_pages(logged_in_page: Page):
     logged_in_page.click("text=Back to Upload")
     expect(logged_in_page).to_have_url("/")
     expect(logged_in_page.locator("h1")).to_contain_text("Upload Historical City Map")
+
+
+@pytest.mark.e2e
+def test_delete_dictionary(logged_in_page: Page):
+    """Test deleting an entire dictionary from the upload page."""
+    # First, create a dictionary by going to editor and adding a street
+    test_city = "DeleteTestDictionary"
+    test_decade = "2023-2032"
+
+    logged_in_page.goto(f"/editor/{test_city}/{test_decade}")
+
+    # Add a street to create the dictionary
+    logged_in_page.select_option("#newPrefix", "ul.")
+    logged_in_page.fill("#newStreetName", "Test Street for Deletion")
+    logged_in_page.click("#submitButton")
+
+    # Wait for page reload and street to appear
+    logged_in_page.wait_for_load_state("networkidle")
+    logged_in_page.wait_for_selector("tr[data-street-id]", timeout=10000)
+
+    # Verify street was created
+    street_rows = logged_in_page.locator("tr[data-street-id]")
+    assert street_rows.count() > 0, "Street was not created successfully"
+
+    # Go back to upload page
+    logged_in_page.click("text=Back to Upload")
+    expect(logged_in_page).to_have_url("/")
+
+    # Wait for the dictionary list to load and find our test dictionary
+    logged_in_page.wait_for_selector(".box .level", timeout=5000)
+
+    # Find the dictionary item for our test city/decade directly
+    test_dictionary_locator = logged_in_page.locator(".box .level").filter(has_text=test_city)
+    expect(test_dictionary_locator).to_be_visible()
+
+    # Verify the delete button exists
+    delete_button = test_dictionary_locator.locator("button.delete-dictionary-btn")
+    expect(delete_button).to_be_visible()
+
+    # Click the delete button
+    delete_button.click()
+
+    # Verify modal appears
+    expect(logged_in_page.locator("#deleteModal")).to_be_visible()
+    expect(logged_in_page.locator("#deleteCity")).to_contain_text(test_city)
+    expect(logged_in_page.locator("#deleteDecade")).to_contain_text(test_decade)
+
+    # Handle the confirmation dialog
+    logged_in_page.on("dialog", lambda dialog: dialog.accept())
+
+    # Click confirm delete
+    logged_in_page.click("#confirmDeleteBtn")
+
+    # Wait for the success alert and page reload
+    logged_in_page.wait_for_load_state("networkidle")
+
+    # Verify the dictionary is no longer in the list
+    test_dictionary_locator = logged_in_page.locator(".box .level").filter(has_text=test_city)
+    expect(test_dictionary_locator).not_to_be_visible()

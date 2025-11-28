@@ -394,3 +394,172 @@ class TestDictionariesAPI:
         data = json.loads(response.data)
         assert "error" in data
         assert "No streets found" in data["error"]
+
+
+class TestDictionaryDelete:
+    """Test cases for dictionary deletion functionality."""
+
+    def test_delete_dictionary_success(self, auth_client, app):
+        """Test successful dictionary deletion."""
+        # Create test streets and source map
+        with app.app_context():
+            user = User.query.filter_by(email=TEST_USER_EMAIL).first()
+            from app.models.source_maps import SourceMaps
+
+            # Create streets
+            street1 = Street(
+                user_id=user.id,
+                city=TEST_CITY,
+                decade=TEST_DECADE,
+                main_name="marszałkowska",
+                main_name_cs="Marszałkowska",
+            )
+            street2 = Street(
+                user_id=user.id,
+                city=TEST_CITY,
+                decade=TEST_DECADE,
+                main_name="piłsudskiego",
+                main_name_cs="Piłsudskiego",
+            )
+            # Include a rejected street to ensure total count reflects all rows
+            rejected_street = Street(
+                user_id=user.id,
+                city=TEST_CITY,
+                decade=TEST_DECADE,
+                main_name="rejected_name",
+                main_name_cs="Rejected Name",
+                is_rejected=True,
+            )
+            db.session.add(street1)
+            db.session.add(street2)
+            db.session.add(rejected_street)
+
+            # Create source map
+            source_map = SourceMaps(
+                user_id=user.id,
+                city=TEST_CITY,
+                decade=TEST_DECADE,
+                original_filename="test_map.jpg",
+                gcs_filename="test_gcs_filename.jpg",
+                gcs_url="https://storage.googleapis.com/test/test_gcs_filename.jpg",
+                streets_count=2,
+            )
+            db.session.add(source_map)
+            db.session.commit()
+
+        # Delete the dictionary
+        response = auth_client.delete(f"/api/dictionaries/{TEST_CITY}/{TEST_DECADE}")
+        assert response.status_code == 200
+
+        data = json.loads(response.data)
+        assert "message" in data
+        assert "deleted successfully" in data["message"]
+        assert data["deleted_streets"] == 3
+        assert data["deleted_active_streets"] == 2
+
+        # Verify streets are deleted
+        with app.app_context():
+            remaining_streets = Street.query.filter_by(city=TEST_CITY, decade=TEST_DECADE).all()
+            assert len(remaining_streets) == 0
+
+            # Verify source map is deleted
+            remaining_source_maps = SourceMaps.query.filter_by(
+                city=TEST_CITY, decade=TEST_DECADE
+            ).all()
+            assert len(remaining_source_maps) == 0
+
+    def test_delete_dictionary_not_found(self, auth_client):
+        """Test deleting non-existent dictionary."""
+        response = auth_client.delete("/api/dictionaries/NonExistentCity/1990-1999")
+        assert response.status_code == 404
+
+        data = json.loads(response.data)
+        assert "error" in data
+        assert "not found" in data["error"]
+
+    def test_delete_dictionary_wrong_user(self, auth_client, app):
+        """Test deleting dictionary that belongs to another user."""
+        # Create another user with their own dictionary
+        with app.app_context():
+            other_user = User(email="other@example.com")
+            other_user.set_password("password123")
+            db.session.add(other_user)
+            db.session.commit()
+
+            street = Street(
+                user_id=other_user.id,
+                city="Warszawa",
+                decade="1950-1959",
+                main_name="nowy_świat",
+                main_name_cs="Nowy Świat",
+            )
+            db.session.add(street)
+            db.session.commit()
+
+        # Try to delete other user's dictionary - should return 404
+        response = auth_client.delete("/api/dictionaries/Warszawa/1950-1959")
+        assert response.status_code == 404
+
+        data = json.loads(response.data)
+        assert "error" in data
+        assert "not found" in data["error"]
+
+    def test_delete_dictionary_only_rejected_streets(self, auth_client, app):
+        """Test deleting dictionary with only rejected streets returns 404."""
+        with app.app_context():
+            user = User.query.filter_by(email=TEST_USER_EMAIL).first()
+
+            # Create only rejected streets
+            street = Street(
+                user_id=user.id,
+                city="RejectedCity",
+                decade="1960-1969",
+                main_name="rejected_street",
+                main_name_cs="Rejected Street",
+                is_rejected=True,
+            )
+            db.session.add(street)
+            db.session.commit()
+
+        # Try to delete - should return 404 since no non-rejected streets
+        response = auth_client.delete("/api/dictionaries/RejectedCity/1960-1969")
+        assert response.status_code == 404
+
+        data = json.loads(response.data)
+        assert "error" in data
+        assert "not found" in data["error"]
+
+    def test_delete_dictionary_unauthenticated(self, client):
+        """Test DELETE /api/dictionaries/{city}/{decade} requires authentication."""
+        response = client.delete("/api/dictionaries/TestCity/2000-2009")
+        # Flask-Login redirects to login instead of 401
+        assert response.status_code == 302
+
+    def test_delete_dictionary_partial_success(self, auth_client, app):
+        """Test dictionary deletion when some streets exist but source map doesn't."""
+        with app.app_context():
+            user = User.query.filter_by(email=TEST_USER_EMAIL).first()
+
+            # Create streets but no source map
+            street = Street(
+                user_id=user.id,
+                city="PartialCity",
+                decade="1970-1979",
+                main_name="partial_street",
+                main_name_cs="Partial Street",
+            )
+            db.session.add(street)
+            db.session.commit()
+
+        # Delete should still work
+        response = auth_client.delete("/api/dictionaries/PartialCity/1970-1979")
+        assert response.status_code == 200
+
+        data = json.loads(response.data)
+        assert data["deleted_streets"] == 1
+        assert data["deleted_active_streets"] == 1
+
+        # Verify street is deleted
+        with app.app_context():
+            remaining_streets = Street.query.filter_by(city="PartialCity", decade="1970-1979").all()
+            assert len(remaining_streets) == 0

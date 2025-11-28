@@ -98,7 +98,38 @@
         </div>
     </div>
 
-
+    <!-- Delete Dictionary Confirmation Modal -->
+    <div id="deleteModal" class="modal">
+        <div class="modal-background"></div>
+        <div class="modal-content">
+            <div class="box has-text-centered">
+                <div class="mb-4">
+                    <span class="icon is-large has-text-danger">
+                        <i class="fas fa-exclamation-triangle fa-3x"></i>
+                    </span>
+                </div>
+                <h3 class="title is-4 has-text-danger">Delete Dictionary</h3>
+                <p class="has-text-grey">
+                    Are you sure you want to delete the dictionary for
+                    <strong><span id="deleteCity"></span> <span id="deleteDecade"></span></strong>?
+                </p>
+                <p class="has-text-grey is-size-7 mt-2">
+                    This will permanently delete <strong><span id="deleteStreetCount"></span> streets</strong>
+                    and all associated data. This action cannot be undone.
+                </p>
+                <div class="buttons is-centered mt-5">
+                    <button type="button" class="button is-grey" id="cancelDeleteBtn">Cancel</button>
+                    <button type="button" class="button is-danger" id="confirmDeleteBtn">
+                        <span class="icon is-small">
+                            <i class="fas fa-trash"></i>
+                        </span>
+                        <span>Delete Dictionary</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+        <button class="modal-close is-large" aria-label="close"></button>
+    </div>
 
     {% if streets %}
     <div class="box">
@@ -124,12 +155,26 @@
                     </div>
                 </div>
                 <div class="level-right">
-                    <a
-                        href="{{ url_for('upload.editor', city=data.city, decade=data.decade) }}"
-                        class="button is-link is-small"
-                    >
-                        Edit →
-                    </a>
+                    <div class="buttons has-addons">
+                        <a
+                            href="{{ url_for('upload.editor', city=data.city, decade=data.decade) }}"
+                            class="button is-link is-small"
+                        >
+                            Edit →
+                        </a>
+                        <button
+                            type="button"
+                            class="button is-danger is-small delete-dictionary-btn"
+                            data-city="{{ data.city }}"
+                            data-decade="{{ data.decade }}"
+                            data-street-count="{{ data.count }}"
+                        >
+                            <span class="icon is-small">
+                                <i class="fas fa-trash"></i>
+                            </span>
+                            <span>Delete</span>
+                        </button>
+                    </div>
                 </div>
             </div>
             {% endfor %}
@@ -143,6 +188,16 @@
 document.addEventListener('DOMContentLoaded', function() {
     const form = document.querySelector('form');
     const overlay = document.getElementById('uploadOverlay');
+    const deleteModal = document.getElementById('deleteModal');
+    const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
+    const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+    const deleteCitySpan = document.getElementById('deleteCity');
+    const deleteDecadeSpan = document.getElementById('deleteDecade');
+    const deleteStreetCountSpan = document.getElementById('deleteStreetCount');
+
+    // Variables to store current delete target
+    let currentDeleteCity = '';
+    let currentDeleteDecade = '';
 
     if (form && overlay) {
         // Handle file input name display
@@ -174,6 +229,85 @@ document.addEventListener('DOMContentLoaded', function() {
             const submitButton = form.querySelector('button[type="submit"]');
             if (submitButton) {
                 submitButton.style.display = 'none';
+            }
+        });
+    }
+
+    // Handle delete dictionary buttons
+    document.addEventListener('click', function(e) {
+        if (e.target.closest('.delete-dictionary-btn')) {
+            const btn = e.target.closest('.delete-dictionary-btn');
+            currentDeleteCity = btn.dataset.city;
+            currentDeleteDecade = btn.dataset.decade;
+            const streetCount = btn.dataset.streetCount;
+
+            // Update modal content
+            deleteCitySpan.textContent = currentDeleteCity;
+            deleteDecadeSpan.textContent = currentDeleteDecade;
+            deleteStreetCountSpan.textContent = streetCount;
+
+            // Show modal
+            deleteModal.classList.add('is-active');
+        }
+    });
+
+    // Handle modal close buttons
+    if (cancelDeleteBtn) {
+        cancelDeleteBtn.addEventListener('click', function() {
+            deleteModal.classList.remove('is-active');
+        });
+    }
+
+    // Handle modal close via background click or X button
+    if (deleteModal) {
+        const modalBackground = deleteModal.querySelector('.modal-background');
+        const modalClose = deleteModal.querySelector('.modal-close');
+
+        if (modalBackground) {
+            modalBackground.addEventListener('click', function() {
+                deleteModal.classList.remove('is-active');
+            });
+        }
+
+        if (modalClose) {
+            modalClose.addEventListener('click', function() {
+                deleteModal.classList.remove('is-active');
+            });
+        }
+    }
+
+    // Handle confirm delete button
+    if (confirmDeleteBtn) {
+        confirmDeleteBtn.addEventListener('click', async function() {
+            try {
+                // Disable button to prevent double-clicks
+                confirmDeleteBtn.disabled = true;
+                confirmDeleteBtn.innerHTML = '<span class="icon is-small"><i class="fas fa-spinner fa-spin"></i></span><span>Deleting...</span>';
+
+                const response = await fetch(`/api/dictionaries/${encodeURIComponent(currentDeleteCity)}/${encodeURIComponent(currentDeleteDecade)}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    // Show success message and reload page
+                    alert(`Dictionary deleted successfully! ${data.deleted_streets} streets removed.`);
+                    window.location.reload();
+                } else {
+                    const errorData = await response.json();
+                    alert(`Error deleting dictionary: ${errorData.error || 'Unknown error'}`);
+                    // Re-enable button
+                    confirmDeleteBtn.disabled = false;
+                    confirmDeleteBtn.innerHTML = '<span class="icon is-small"><i class="fas fa-trash"></i></span><span>Delete Dictionary</span>';
+                }
+            } catch (error) {
+                alert('Network error occurred. Please try again.');
+                // Re-enable button
+                confirmDeleteBtn.disabled = false;
+                confirmDeleteBtn.innerHTML = '<span class="icon is-small"><i class="fas fa-trash"></i></span><span>Delete Dictionary</span>';
             }
         });
     }
