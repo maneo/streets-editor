@@ -17,6 +17,14 @@
         </div>
         <div class="level-right">
             <div class="buttons">
+                {% if is_current_default %}
+                <a
+                    href="{{ url_for('default_streets.manage', city=city) }}"
+                    class="button is-info"
+                >
+                    Manage Default Streets
+                </a>
+                {% endif %}
                 <a
                     href="{{ url_for('api_dictionaries.dictionary_streets_txt', city=city, decade=decade) }}"
                     class="button is-dark"
@@ -148,7 +156,7 @@
                     <tr>
                         <th>Prefix</th>
                         <th>Street Name</th>
-                        <th>Source</th>
+                        <th>Mapping</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -162,9 +170,18 @@
                             <span class="name-display">{{ street.main_name_cs }}</span>
                         </td>
                         <td>
-                            <span class="tag {% if street.source == 'ai' %}is-purple{% else %}is-info{% endif %}">
-                                {{ street.source }}
-                            </span>
+                            {% if street.mapped_to_default_street %}
+                                {% set mapped_prefix = '' if not street.mapped_to_default_street.prefix or street.mapped_to_default_street.prefix == '-' else street.mapped_to_default_street.prefix + ' ' %}
+                                {% set mapped_name = mapped_prefix + street.mapped_to_default_street.main_name_cs %}
+                                <span class="tag is-success" title="Mapped to: {{ mapped_name }}">
+                                    <span class="icon is-small">
+                                        <i class="fas fa-link"></i>
+                                    </span>
+                                    <span>{{ mapped_name }}</span>
+                                </span>
+                            {% else %}
+                                <span class="tag is-grey has-text-grey-dark">Not mapped</span>
+                            {% endif %}
                         </td>
                         <td>
                             <div class="buttons are-small">
@@ -174,6 +191,23 @@
                                 >
                                     Edit
                                 </button>
+                                {% if has_default_dictionary and not is_current_default %}
+                                {% if street.mapped_to_default_street %}
+                                    {% set mapped_prefix = '' if not street.mapped_to_default_street.prefix or street.mapped_to_default_street.prefix == '-' else street.mapped_to_default_street.prefix + ' ' %}
+                                    {% set mapped_name = mapped_prefix + street.mapped_to_default_street.main_name_cs %}
+                                {% else %}
+                                    {% set mapped_name = '' %}
+                                {% endif %}
+                                <button
+                                    onclick="openMappingModal('{{ street.id }}', '{{ street.mapped_to_default_street.id if street.mapped_to_default_street else '' }}', '{{ mapped_name|replace("'", "\\'") }}')"
+                                    class="button is-info is-small"
+                                >
+                                    <span class="icon is-small">
+                                        <i class="fas fa-link"></i>
+                                    </span>
+                                    <span>Mapowanie</span>
+                                </button>
+                                {% endif %}
                                 <button
                                     onclick="deleteStreet('{{ street.id }}')"
                                     class="button is-danger is-small"
@@ -194,6 +228,70 @@
         {% endif %}
     </div>
 </div>
+
+<!-- Mapping Modal -->
+{% if has_default_dictionary %}
+<div id="mappingModal" class="modal">
+    <div class="modal-background" onclick="closeMappingModal()"></div>
+    <div class="modal-content">
+        <div class="box">
+            <h2 class="subtitle is-5 mb-4">Map Street to Default Street</h2>
+
+            <!-- Search Input -->
+            <div class="field">
+                <label for="mappingSearch" class="label">Search Default Streets</label>
+                <div class="control has-icons-left">
+                    <input
+                        type="text"
+                        id="mappingSearch"
+                        placeholder="Type to search..."
+                        class="input"
+                        oninput="searchDefaultStreets()"
+                    >
+                    <span class="icon is-small is-left">
+                        <i class="fas fa-search"></i>
+                    </span>
+                </div>
+            </div>
+
+            <!-- Streets List -->
+            <div id="mappingStreetsList" class="box" style="max-height: 400px; overflow-y: auto;">
+                <p class="has-text-grey has-text-centered">Loading default streets...</p>
+            </div>
+
+            <!-- Current Mapping (if exists) -->
+            <div id="currentMapping" class="notification is-info is-light" style="display: none;">
+                <p class="has-text-weight-bold">Current Mapping:</p>
+                <p id="currentMappingText"></p>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="field is-grouped is-grouped-right mt-4">
+                <div class="control">
+                    <button type="button" class="button" onclick="closeMappingModal()">Cancel</button>
+                </div>
+                <div class="control">
+                    <button type="button" class="button is-danger" id="removeMappingBtn" onclick="removeMapping()" style="display: none;">
+                        <span class="icon is-small">
+                            <i class="fas fa-unlink"></i>
+                        </span>
+                        <span>Remove Mapping</span>
+                    </button>
+                </div>
+                <div class="control">
+                    <button type="button" class="button is-primary" id="saveMappingBtn" onclick="saveMapping()" disabled>
+                        <span class="icon is-small">
+                            <i class="fas fa-link"></i>
+                        </span>
+                        <span>Save Mapping</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <button class="modal-close is-large" aria-label="close" onclick="closeMappingModal()"></button>
+</div>
+{% endif %}
 
 {% endblock %}
 

@@ -43,15 +43,24 @@ def create_app(config_name="development"):
         return User.query.get(int(user_id))
 
     # Import models (required for Flask-Migrate)
-    from app.models import source_maps, street, user
+    from app.models import source_maps, street, street_content, user
 
     # Register blueprints
-    from app.routes import api_dictionaries, api_streets, auth, upload
+    from app.routes import (
+        api_dictionaries,
+        api_street_content,
+        api_streets,
+        auth,
+        default_streets,
+        upload,
+    )
 
     app.register_blueprint(auth.bp)
     app.register_blueprint(upload.bp)
     app.register_blueprint(api_streets.bp)
     app.register_blueprint(api_dictionaries.bp)
+    app.register_blueprint(api_street_content.bp)
+    app.register_blueprint(default_streets.bp)
 
     # Register CLI commands
     from app.cli import register_cli_commands

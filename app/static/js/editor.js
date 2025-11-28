@@ -169,9 +169,218 @@ async function deleteStreet(id) {
     }
 }
 
-// Close modal when clicking outside
-document.getElementById('editModal').addEventListener('click', function(e) {
-    if (e.target === this) {
-        closeEditModal();
+// Mapping modal state
+let currentMappingStreetId = null;
+let selectedDefaultStreetId = null;
+let originalMappingId = null; // Store original mapping to compare changes
+let allDefaultStreets = [];
+
+// Open mapping modal
+async function openMappingModal(streetId, currentMappingId, currentMappingName) {
+    currentMappingStreetId = streetId;
+    originalMappingId = currentMappingId ? parseInt(currentMappingId) : null;
+    selectedDefaultStreetId = originalMappingId;
+
+    const modal = document.getElementById('mappingModal');
+    if (!modal) return;
+
+    // Show current mapping if exists
+    const currentMappingDiv = document.getElementById('currentMapping');
+    const currentMappingText = document.getElementById('currentMappingText');
+    const removeMappingBtn = document.getElementById('removeMappingBtn');
+    const saveBtn = document.getElementById('saveMappingBtn');
+
+    if (currentMappingId && currentMappingName) {
+        currentMappingDiv.style.display = 'block';
+        currentMappingText.textContent = currentMappingName;
+        removeMappingBtn.style.display = 'block';
+    } else {
+        currentMappingDiv.style.display = 'none';
+        removeMappingBtn.style.display = 'none';
     }
-});
+
+    // Reset search and load streets
+    document.getElementById('mappingSearch').value = '';
+    await loadDefaultStreets();
+
+    // Update save button state
+    if (saveBtn) {
+        saveBtn.disabled = !selectedDefaultStreetId || selectedDefaultStreetId === originalMappingId;
+    }
+
+    // Show modal
+    modal.classList.add('is-active');
+}
+
+// Close mapping modal
+function closeMappingModal() {
+    const modal = document.getElementById('mappingModal');
+    if (modal) {
+        modal.classList.remove('is-active');
+    }
+    currentMappingStreetId = null;
+    selectedDefaultStreetId = null;
+    originalMappingId = null;
+}
+
+// Load default streets
+async function loadDefaultStreets(searchQuery = '') {
+    const listDiv = document.getElementById('mappingStreetsList');
+    if (!listDiv) return;
+
+    try {
+        const url = `/api/default-streets/${encodeURIComponent(CITY)}${searchQuery ? `?search=${encodeURIComponent(searchQuery)}` : ''}`;
+        const response = await fetch(url);
+
+        if (!response.ok) {
+            listDiv.innerHTML = '<p class="has-text-danger">Failed to load default streets.</p>';
+            return;
+        }
+
+        const data = await response.json();
+        allDefaultStreets = data.streets || [];
+
+        if (allDefaultStreets.length === 0) {
+            listDiv.innerHTML = '<p class="has-text-grey has-text-centered">No default streets found.</p>';
+            return;
+        }
+
+        // Render streets list
+        let html = '<div class="content">';
+        allDefaultStreets.forEach(street => {
+            const isSelected = selectedDefaultStreetId == street.id;
+            html += `
+                <div class="box mb-2 ${isSelected ? 'has-background-info-light' : ''}"
+                     onclick="selectDefaultStreet(${street.id}, '${street.display_name.replace(/'/g, "\\'")}')"
+                     style="cursor: pointer; ${isSelected ? 'border: 2px solid #3273dc;' : ''}">
+                    <div class="level">
+                        <div class="level-left">
+                            <div>
+                                <strong>${street.display_name}</strong>
+                            </div>
+                        </div>
+                        <div class="level-right">
+                            ${isSelected ? '<span class="tag is-info"><i class="fas fa-check"></i> Selected</span>' : ''}
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        html += '</div>';
+        listDiv.innerHTML = html;
+
+        // Update save button state
+        const saveBtn = document.getElementById('saveMappingBtn');
+        if (saveBtn) {
+            saveBtn.disabled = !selectedDefaultStreetId || selectedDefaultStreetId === originalMappingId;
+        }
+    } catch (error) {
+        console.error('Error loading default streets:', error);
+        listDiv.innerHTML = '<p class="has-text-danger">An error occurred while loading default streets.</p>';
+    }
+}
+
+// Search default streets
+function searchDefaultStreets() {
+    const searchQuery = document.getElementById('mappingSearch').value.trim();
+    loadDefaultStreets(searchQuery);
+}
+
+// Select default street
+function selectDefaultStreet(streetId, streetName) {
+    selectedDefaultStreetId = parseInt(streetId);
+
+    // Update UI - highlight selected street
+    const listDiv = document.getElementById('mappingStreetsList');
+    const boxes = listDiv.querySelectorAll('.box');
+    boxes.forEach(box => {
+        const onclickAttr = box.getAttribute('onclick') || '';
+        const isSelected = onclickAttr.includes(`selectDefaultStreet(${streetId},`);
+
+        if (isSelected) {
+            box.classList.add('has-background-info-light');
+            box.style.border = '2px solid #3273dc';
+            // Add selected indicator
+            const levelRight = box.querySelector('.level-right');
+            if (levelRight) {
+                levelRight.innerHTML = '<span class="tag is-info"><i class="fas fa-check"></i> Selected</span>';
+            }
+        } else {
+            box.classList.remove('has-background-info-light');
+            box.style.border = '';
+            const levelRight = box.querySelector('.level-right');
+            if (levelRight) {
+                const tag = levelRight.querySelector('.tag');
+                if (tag) tag.remove();
+            }
+        }
+    });
+
+    // Update save button
+    const saveBtn = document.getElementById('saveMappingBtn');
+    if (saveBtn) {
+        // Enable button if a street is selected and it's different from original mapping
+        saveBtn.disabled = !selectedDefaultStreetId || selectedDefaultStreetId === originalMappingId;
+    }
+}
+
+// Save mapping
+async function saveMapping() {
+    if (!currentMappingStreetId || !selectedDefaultStreetId) {
+        alert('Please select a default street.');
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/streets/${currentMappingStreetId}/map-to-default`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                default_street_id: selectedDefaultStreetId
+            })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            closeMappingModal();
+            window.location.reload();
+        } else {
+            alert(data.error || 'Failed to save mapping.');
+        }
+    } catch (error) {
+        console.error('Error saving mapping:', error);
+        alert('An error occurred while saving the mapping.');
+    }
+}
+
+// Remove mapping
+async function removeMapping() {
+    if (!currentMappingStreetId) {
+        return;
+    }
+
+    if (!confirm('Are you sure you want to remove the mapping?')) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/streets/${currentMappingStreetId}/map-to-default`, {
+            method: 'DELETE',
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            closeMappingModal();
+            window.location.reload();
+        } else {
+            alert(data.error || 'Failed to remove mapping.');
+        }
+    } catch (error) {
+        console.error('Error removing mapping:', error);
+        alert('An error occurred while removing the mapping.');
+    }
+}

@@ -109,6 +109,8 @@ def update_street(street_id):
         street.variants = json.dumps(data["variants"])
     if "misspellings" in data:
         street.misspellings = json.dumps(data["misspellings"])
+    if "is_default_street" in data:
+        street.is_default_street = bool(data["is_default_street"])
 
     db.session.commit()
 
@@ -128,3 +130,96 @@ def delete_street(street_id):
     db.session.commit()
 
     return jsonify({"message": "Street marked as rejected."}), 200
+
+
+@bp.route("/default-streets/<city>", methods=["GET"])
+@login_required
+def get_default_streets(city):
+    """Get default streets for a city (for mapping)."""
+    search_query = request.args.get("search", "").strip().lower()
+
+    # Get default streets for the city
+    query = Street.query.filter_by(
+        user_id=current_user.id, city=city, is_default_street=True, is_rejected=False
+    )
+
+    # Apply search filter if provided
+    if search_query:
+        query = query.filter(
+            Street.main_name.contains(search_query) | Street.main_name_cs.contains(search_query)
+        )
+
+    streets = query.order_by(Street.main_name).all()
+
+    result = []
+    for street in streets:
+        display_prefix = "" if not street.prefix or street.prefix == "-" else f"{street.prefix} "
+        result.append(
+            {
+                "id": street.id,
+                "display_name": f"{display_prefix}{street.main_name_cs}".strip(),
+                "main_name": street.main_name_cs,
+                "prefix": street.prefix,
+            }
+        )
+
+    return jsonify({"streets": result}), 200
+
+
+@bp.route("/streets/<int:street_id>/map-to-default", methods=["PUT"])
+@login_required
+def map_street_to_default(street_id):
+    """Map a street to a default street."""
+    street = Street.query.get_or_404(street_id)
+
+    if street.user_id != current_user.id:
+        return jsonify({"error": "Unauthorized"}), 403
+
+    data = request.get_json()
+    default_street_id = data.get("default_street_id")
+
+    if not default_street_id:
+        return jsonify({"error": "default_street_id is required."}), 400
+
+    # Verify the default street exists and belongs to the same city
+    default_street = Street.query.get_or_404(default_street_id)
+
+    if default_street.user_id != current_user.id:
+        return jsonify({"error": "Unauthorized"}), 403
+
+    if default_street.city != street.city:
+        return jsonify({"error": "Default street must be from the same city."}), 400
+
+    if not default_street.is_default_street:
+        return jsonify({"error": "Target street must be a default street."}), 400
+
+    street.default_street_id = default_street_id
+    db.session.commit()
+
+    return jsonify(
+        {
+            "message": "Street mapped successfully.",
+            "mapped_to": {
+                "id": default_street.id,
+                "display_name": f"{'' if not default_street.prefix or default_street.prefix == '-' else f'{default_street.prefix} '}{default_street.main_name_cs}".strip(),
+            },
+        }
+    ), 200
+
+
+@bp.route("/streets/<int:street_id>/map-to-default", methods=["DELETE"])
+@login_required
+def unmap_street_from_default(street_id):
+    """Remove mapping from a street to default street."""
+    street = Street.query.get_or_404(street_id)
+
+    if street.user_id != current_user.id:
+        return jsonify({"error": "Unauthorized"}), 403
+
+    if not street.default_street_id:
+        return jsonify({"error": "Street is not mapped to any default street."}), 400
+
+    street.default_street_id = None
+    db.session.commit()
+
+    return jsonify({"message": "Street mapping removed successfully."}), 200

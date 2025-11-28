@@ -179,6 +179,53 @@ def dictionary_streets_txt(city, decade):
     )
 
 
+@bp.route("/dictionaries/<city>/<decade>/set-default", methods=["PUT"])
+@login_required
+def set_default_dictionary(city, decade):
+    """Set a dictionary as default for a city. Only one dictionary per city can be default."""
+
+    # Verify that the dictionary exists and belongs to the current user
+    streets = Street.query.filter_by(
+        user_id=current_user.id, city=city, decade=decade, is_rejected=False
+    ).all()
+
+    if not streets:
+        return _json_error("Dictionary not found or has no active streets.", 404)
+
+    # Find all streets in other dictionaries for this city that are currently default
+    other_default_streets = (
+        Street.query.filter_by(user_id=current_user.id, city=city, is_default_street=True)
+        .filter(Street.decade != decade)
+        .all()
+    )
+
+    # Remove street_content for streets that are no longer default
+    for street in other_default_streets:
+        if street.street_content:
+            db.session.delete(street.street_content)
+
+    # Set is_default_street=False for all other dictionaries in this city
+    Street.query.filter_by(user_id=current_user.id, city=city, is_default_street=True).update(
+        {"is_default_street": False}, synchronize_session=False
+    )
+
+    # Set is_default_street=True for all streets in the selected dictionary
+    Street.query.filter_by(
+        user_id=current_user.id, city=city, decade=decade, is_rejected=False
+    ).update({"is_default_street": True}, synchronize_session=False)
+
+    db.session.commit()
+
+    return jsonify(
+        {
+            "message": f"Dictionary '{city} {decade}' set as default successfully.",
+            "city": city,
+            "decade": decade,
+            "streets_updated": len(streets),
+        }
+    ), 200
+
+
 @bp.route("/dictionaries/<city>/<decade>", methods=["DELETE"])
 @login_required
 def delete_dictionary(city, decade):

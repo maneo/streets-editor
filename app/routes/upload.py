@@ -4,6 +4,7 @@ import os
 
 from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
+from sqlalchemy.orm import joinedload
 
 from app import db
 from app.models.source_maps import SourceMaps
@@ -14,13 +15,33 @@ from app.services.file_handler import save_upload, validate_file
 bp = Blueprint("upload", __name__)
 
 
+def _get_default_dictionary_for_city(city, user_id):
+    """Get the default dictionary (decade) for a given city."""
+    # Find any street with is_default_street=True for this city
+    default_street = Street.query.filter_by(
+        user_id=user_id, city=city, is_default_street=True, is_rejected=False
+    ).first()
+    return default_street.decade if default_street else None
+
+
 @bp.route("/")
 @login_required
 def index():
     """Main upload page."""
     # Get user's streets grouped by city and decade
     streets = Street.query.filter_by(user_id=current_user.id, is_rejected=False).all()
-    return render_template("upload.html", streets=streets)
+
+    # Build a map of city -> default decade
+    default_dictionaries = {}
+    cities = {street.city for street in streets}
+    for city in cities:
+        default_decade = _get_default_dictionary_for_city(city, current_user.id)
+        if default_decade:
+            default_dictionaries[city] = default_decade
+
+    return render_template(
+        "upload.html", streets=streets, default_dictionaries=default_dictionaries
+    )
 
 
 @bp.route("/upload", methods=["POST"])
@@ -177,7 +198,8 @@ def upload_file():
 def editor(city, decade):
     """Street editor page for a specific city and decade."""
     streets = (
-        Street.query.filter_by(user_id=current_user.id, city=city, decade=decade, is_rejected=False)
+        Street.query.options(joinedload(Street.mapped_to_default_street))
+        .filter_by(user_id=current_user.id, city=city, decade=decade, is_rejected=False)
         .order_by(Street.main_name)
         .all()
     )
@@ -187,6 +209,20 @@ def editor(city, decade):
         user_id=current_user.id, city=city, decade=decade
     ).first()
 
+    # Check if there's a default dictionary for this city
+    default_street = Street.query.filter_by(
+        user_id=current_user.id, city=city, is_default_street=True, is_rejected=False
+    ).first()
+
+    has_default_dictionary = default_street is not None
+    is_current_default = default_street and default_street.decade == decade
+
     return render_template(
-        "editor.html", streets=streets, city=city, decade=decade, source_map=source_map
+        "editor.html",
+        streets=streets,
+        city=city,
+        decade=decade,
+        source_map=source_map,
+        has_default_dictionary=has_default_dictionary,
+        is_current_default=is_current_default,
     )

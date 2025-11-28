@@ -98,6 +98,39 @@
         </div>
     </div>
 
+    <!-- Set Default Dictionary Confirmation Modal -->
+    <div id="setDefaultModal" class="modal">
+        <div class="modal-background"></div>
+        <div class="modal-content">
+            <div class="box has-text-centered">
+                <div class="mb-4">
+                    <span class="icon is-large has-text-info">
+                        <i class="fas fa-star fa-3x"></i>
+                    </span>
+                </div>
+                <h3 class="title is-4 has-text-info">Set Default Dictionary</h3>
+                <p class="has-text-grey">
+                    Set <strong><span id="setDefaultCity"></span> - <span id="setDefaultDecade"></span></strong>
+                    as the default dictionary for <strong><span id="setDefaultCityName"></span></strong>?
+                </p>
+                <p class="has-text-grey is-size-7 mt-2">
+                    This will remove the default status from any other dictionary for this city.
+                    All streets in this dictionary will be marked as default streets and can have extended content.
+                </p>
+                <div class="buttons is-centered mt-5">
+                    <button type="button" class="button is-grey" id="cancelSetDefaultBtn">Cancel</button>
+                    <button type="button" class="button is-info" id="confirmSetDefaultBtn">
+                        <span class="icon is-small">
+                            <i class="fas fa-star"></i>
+                        </span>
+                        <span>Set as Default</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+        <button class="modal-close is-large" aria-label="close"></button>
+    </div>
+
     <!-- Delete Dictionary Confirmation Modal -->
     <div id="deleteModal" class="modal">
         <div class="modal-background"></div>
@@ -152,6 +185,14 @@
                         <strong>{{ data.city }}</strong> -
                         <span class="has-text-grey">{{ data.decade }}</span>
                         <span class="tag is-light ml-2">({{ data.count }} streets)</span>
+                        {% if default_dictionaries.get(data.city) == data.decade %}
+                        <span class="tag is-success ml-2">
+                            <span class="icon is-small">
+                                <i class="fas fa-star"></i>
+                            </span>
+                            <span>Default Dictionary</span>
+                        </span>
+                        {% endif %}
                     </div>
                 </div>
                 <div class="level-right">
@@ -162,6 +203,19 @@
                         >
                             Edit →
                         </a>
+                        {% if default_dictionaries.get(data.city) != data.decade %}
+                        <button
+                            type="button"
+                            class="button is-info is-small set-default-dictionary-btn"
+                            data-city="{{ data.city }}"
+                            data-decade="{{ data.decade }}"
+                        >
+                            <span class="icon is-small">
+                                <i class="fas fa-star"></i>
+                            </span>
+                            <span>Set as Default</span>
+                        </button>
+                        {% endif %}
                         <button
                             type="button"
                             class="button is-danger is-small delete-dictionary-btn"
@@ -188,6 +242,12 @@
 document.addEventListener('DOMContentLoaded', function() {
     const form = document.querySelector('form');
     const overlay = document.getElementById('uploadOverlay');
+    const setDefaultModal = document.getElementById('setDefaultModal');
+    const cancelSetDefaultBtn = document.getElementById('cancelSetDefaultBtn');
+    const confirmSetDefaultBtn = document.getElementById('confirmSetDefaultBtn');
+    const setDefaultCitySpan = document.getElementById('setDefaultCity');
+    const setDefaultDecadeSpan = document.getElementById('setDefaultDecade');
+    const setDefaultCityNameSpan = document.getElementById('setDefaultCityName');
     const deleteModal = document.getElementById('deleteModal');
     const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
     const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
@@ -195,7 +255,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const deleteDecadeSpan = document.getElementById('deleteDecade');
     const deleteStreetCountSpan = document.getElementById('deleteStreetCount');
 
-    // Variables to store current delete target
+    // Variables to store current targets
+    let currentSetDefaultCity = '';
+    let currentSetDefaultDecade = '';
+    let currentSetDefaultButton = null;
     let currentDeleteCity = '';
     let currentDeleteDecade = '';
 
@@ -229,6 +292,85 @@ document.addEventListener('DOMContentLoaded', function() {
             const submitButton = form.querySelector('button[type="submit"]');
             if (submitButton) {
                 submitButton.style.display = 'none';
+            }
+        });
+    }
+
+    // Handle set default dictionary buttons
+    document.addEventListener('click', function(e) {
+        if (e.target.closest('.set-default-dictionary-btn')) {
+            const btn = e.target.closest('.set-default-dictionary-btn');
+            currentSetDefaultCity = btn.dataset.city;
+            currentSetDefaultDecade = btn.dataset.decade;
+            currentSetDefaultButton = btn;
+
+            // Update modal content
+            setDefaultCitySpan.textContent = currentSetDefaultCity;
+            setDefaultDecadeSpan.textContent = currentSetDefaultDecade;
+            setDefaultCityNameSpan.textContent = currentSetDefaultCity;
+
+            // Show modal
+            setDefaultModal.classList.add('is-active');
+        }
+    });
+
+    // Handle set default modal close buttons
+    if (cancelSetDefaultBtn) {
+        cancelSetDefaultBtn.addEventListener('click', function() {
+            setDefaultModal.classList.remove('is-active');
+        });
+    }
+
+    // Handle set default modal close via background click or X button
+    if (setDefaultModal) {
+        const modalBackground = setDefaultModal.querySelector('.modal-background');
+        const modalClose = setDefaultModal.querySelector('.modal-close');
+
+        if (modalBackground) {
+            modalBackground.addEventListener('click', function() {
+                setDefaultModal.classList.remove('is-active');
+            });
+        }
+
+        if (modalClose) {
+            modalClose.addEventListener('click', function() {
+                setDefaultModal.classList.remove('is-active');
+            });
+        }
+    }
+
+    // Handle confirm set default button
+    if (confirmSetDefaultBtn) {
+        confirmSetDefaultBtn.addEventListener('click', async function() {
+            try {
+                // Disable button to prevent double-clicks
+                confirmSetDefaultBtn.disabled = true;
+                confirmSetDefaultBtn.innerHTML = '<span class="icon is-small"><i class="fas fa-spinner fa-spin"></i></span><span>Setting...</span>';
+
+                const response = await fetch(`/api/dictionaries/${encodeURIComponent(currentSetDefaultCity)}/${encodeURIComponent(currentSetDefaultDecade)}/set-default`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    // Close modal and reload page to show updated default status
+                    setDefaultModal.classList.remove('is-active');
+                    window.location.reload();
+                } else {
+                    alert(`Error: ${data.error || 'Unknown error'}`);
+                    // Re-enable button
+                    confirmSetDefaultBtn.disabled = false;
+                    confirmSetDefaultBtn.innerHTML = '<span class="icon is-small"><i class="fas fa-star"></i></span><span>Set as Default</span>';
+                }
+            } catch (error) {
+                alert('Network error occurred. Please try again.');
+                // Re-enable button
+                confirmSetDefaultBtn.disabled = false;
+                confirmSetDefaultBtn.innerHTML = '<span class="icon is-small"><i class="fas fa-star"></i></span><span>Set as Default</span>';
             }
         });
     }
