@@ -15,6 +15,14 @@ def allowed_file(filename):
     )
 
 
+def allowed_csv_file(filename):
+    """Check if CSV extension is allowed."""
+    return (
+        "." in filename
+        and filename.rsplit(".", 1)[1].lower() in current_app.config["ALLOWED_CSV_EXTENSIONS"]
+    )
+
+
 def validate_file(file):
     """
     Validate uploaded file.
@@ -45,6 +53,32 @@ def validate_file(file):
         file.seek(0)  # Reset after verification
     except Exception:
         return "Invalid image file."
+
+    return None
+
+
+def validate_csv_file(file):
+    """
+    Validate uploaded CSV file.
+    Returns error message if invalid, None if valid.
+    """
+    if not file:
+        return "No file provided."
+
+    if file.filename == "":
+        return "No file selected."
+
+    if not allowed_csv_file(file.filename):
+        return "Invalid file type. Only CSV files are allowed."
+
+    # Check file size (reuse MAX_CONTENT_LENGTH)
+    file.seek(0, os.SEEK_END)
+    size = file.tell()
+    file.seek(0)
+
+    max_size = current_app.config["MAX_CONTENT_LENGTH"]
+    if size > max_size:
+        return f"File size exceeds maximum limit of {max_size / (1024 * 1024):.0f} MB."
 
     return None
 

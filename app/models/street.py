@@ -4,6 +4,24 @@ from datetime import datetime
 
 from app import db
 
+# Canonical set of allowed prefixes (normalized to lowercase)
+ALLOWED_PREFIXES = {
+    "ul.",
+    "al.",
+    "-",
+    "skwer",
+    "wiadukt",
+    "zaułek",
+    "os.",
+    "park",
+    "rondo",
+    "tunel",
+    "most",
+    "rynek",
+    "droga",
+    "pl.",
+}
+
 
 class Street(db.Model):
     """Street model in the dictionary."""
@@ -23,6 +41,7 @@ class Street(db.Model):
     main_name_cs = db.Column(
         db.String(200), nullable=False
     )  # case-sensitive version from extraction
+    district = db.Column(db.String(100), nullable=True)
     variants = db.Column(db.Text, default="")  # JSON array as string
     misspellings = db.Column(db.Text, default="")  # JSON array as string
 
@@ -69,6 +88,7 @@ class Street(db.Model):
             "main_name": self.main_name,  # Use lowercase version for API consistency
             "main_name_cs": self.main_name_cs,
             "display_name": f"{display_prefix}{self.main_name_cs}".strip(),
+            "district": self.district,
             "variants": variants,
             "misspellings": misspellings,
             "is_rejected": self.is_rejected,
@@ -109,6 +129,7 @@ class Street(db.Model):
             "main_name": (self.main_name or "").lower(),  # Use lowercase version for exports
             "main_name_cs": self.main_name_cs,
             "display_name": f"{display_prefix}{self.main_name_cs}".strip(),
+            "district": self.district,
             "variants": variants,
             "misspellings": misspellings,
             "is_rejected": self.is_rejected,

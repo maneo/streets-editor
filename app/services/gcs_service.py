@@ -1,5 +1,6 @@
 """Google Cloud Storage service for handling file uploads."""
 
+import mimetypes
 import os
 
 from google.cloud import storage
@@ -53,7 +54,11 @@ class GCSService:
         gcs_filename = f"{source_map_id}{ext}"
 
         blob = bucket.blob(gcs_filename)
-        blob.upload_from_file(file, content_type=file.content_type)
+
+        guessed_type, _ = mimetypes.guess_type(original_filename)
+        content_type = file.content_type or guessed_type or "application/octet-stream"
+
+        blob.upload_from_file(file, content_type=content_type)
 
         # For buckets with uniform bucket-level access, construct public URL directly
         # The bucket should be configured with public read access at bucket level

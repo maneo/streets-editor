@@ -21,6 +21,7 @@ def add_street():
     decade = data.get("decade")
     prefix = data.get("prefix", "ul.")
     main_name_cs = data.get("main_name_cs", "").strip()
+    district = data.get("district")
     variants = data.get("variants", [])
     misspellings = data.get("misspellings", [])
 
@@ -42,6 +43,7 @@ def add_street():
         prefix=prefix,
         main_name=main_name_cs.lower(),
         main_name_cs=main_name_cs,
+        district=district or None,
         variants=json.dumps(variants),
         misspellings=json.dumps(misspellings),
         source="manual",
@@ -104,6 +106,9 @@ def update_street(street_id):
 
         street.main_name = new_name_cs.lower()
         street.main_name_cs = new_name_cs
+
+    if "district" in data:
+        street.district = data["district"] or None
 
     if "variants" in data:
         street.variants = json.dumps(data["variants"])

@@ -23,9 +23,17 @@ class Config:
 
     SECRET_KEY = os.environ.get("SECRET_KEY") or "dev-secret-key-change-in-production"
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    MAX_CONTENT_LENGTH = int(os.environ.get("MAX_UPLOAD_SIZE", 52428800))  # 50 MB
+    # Parse MAX_UPLOAD_SIZE, handling potential whitespace/comments
+    _max_upload_size = os.environ.get("MAX_UPLOAD_SIZE", "52428800")
+    # Strip whitespace and take first token (in case comment was included)
+    _max_upload_size_stripped = _max_upload_size.strip() if _max_upload_size else ""
+    _max_upload_size_clean = (
+        _max_upload_size_stripped.split()[0] if _max_upload_size_stripped else "52428800"
+    )
+    MAX_CONTENT_LENGTH = int(_max_upload_size_clean)  # 50 MB
     UPLOAD_FOLDER = os.environ.get("UPLOAD_FOLDER", "app/static/uploads")
     ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg"}
+    ALLOWED_CSV_EXTENSIONS = {"csv"}
     OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
     OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1/chat/completions"
 
@@ -33,7 +41,9 @@ class Config:
     EXTRACTION_MODEL = os.environ.get("EXTRACTION_MODEL", "google/gemini-2.5-pro")
 
     # Database batch operations
-    BATCH_INSERT_SIZE = int(os.environ.get("BATCH_INSERT_SIZE", 50))
+    _batch_size = os.environ.get("BATCH_INSERT_SIZE", "50")
+    _batch_size_stripped = _batch_size.strip() if _batch_size else ""
+    BATCH_INSERT_SIZE = int(_batch_size_stripped.split()[0] if _batch_size_stripped else "50")
 
     # Google Cloud Storage
     GCP_PROJECT_ID = os.environ.get("GCP_PROJECT_ID", "gazety-poznan-pl")

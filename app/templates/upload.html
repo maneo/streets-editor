@@ -4,17 +4,22 @@
 
 {% block content %}
 <div class="container">
-    <h1 class="title is-3 mb-6 has-text-grey-dark">Upload Historical City Map</h1>
+    <h1 class="title is-3 mb-6 has-text-grey-dark">Upload Streets Data</h1>
     <div class="box mb-6">
-        <h2 class="subtitle is-5">Upload New Map</h2>
+        <h2 class="subtitle is-5">Upload New Map or CSV</h2>
 
         <p class="content is-small mb-4">
-            Need an example file?
+            <strong>Map images:</strong> Upload a JPG or PNG image of a historical city map. Street names will be extracted automatically using AI.
             <a href="{{ url_for('static', filename='images/example.png') }}" download>
                 <span class="icon is-small"><i class="fas fa-download"></i></span>
                 <span>Download example city map</span>
             </a>
         </p>
+        <p class="content is-small mb-4">
+            <strong>CSV format:</strong> <code>city,prefix,street_name_cs,district</code>.
+            Unknown prefixes are kept as-is. City rows that don't match the chosen city are skipped.
+        </p>
+
 
         <form method="POST" action="{{ url_for('upload.upload_file') }}" enctype="multipart/form-data">
             <div class="field">
@@ -46,7 +51,7 @@
             </div>
 
             <div class="field">
-                <label for="file" class="label">Map Image (JPG/PNG, max 50 MB)</label>
+                <label for="file" class="label">Upload File (Map Image or CSV, max 50 MB)</label>
                 <div class="control">
                     <div class="file has-name">
                         <label class="file-label">
@@ -54,7 +59,7 @@
                                 type="file"
                                 id="file"
                                 name="file"
-                                accept=".jpg,.jpeg,.png"
+                                accept=".jpg,.jpeg,.png,.csv"
                                 required
                                 class="file-input"
                             >
@@ -72,12 +77,13 @@
                         </label>
                     </div>
                 </div>
+                <p class="help">Accepted formats: Map images (JPG, PNG) or CSV street lists</p>
             </div>
 
             <div class="field">
                 <div class="control">
-                    <button type="submit" class="button is-primary is-fullwidth">
-                        Upload and Extract Streets
+                    <button type="submit" class="button is-primary is-fullwidth" id="submitUploadBtn">
+                        Upload
                     </button>
                 </div>
             </div>

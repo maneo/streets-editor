@@ -42,7 +42,8 @@
     </div>
 
     <!-- Source Map Display -->
-    {% if source_map %}
+    {% set source_map_url = source_map.gcs_url|lower if source_map and source_map.gcs_url else '' %}
+    {% if source_map_url.endswith('.png') or source_map_url.endswith('.jpg') or source_map_url.endswith('.jpeg') %}
     <div class="box mb-6">
         <h2 class="subtitle is-5 has-text-grey-light">Source Map</h2>
         <div class="content">
@@ -81,6 +82,16 @@
                                     <option value="pl.">pl.</option>
                                     <option value="al.">al.</option>
                                     <option value="-">-</option>
+                                    <option value="skwer">skwer</option>
+                                    <option value="wiadukt">wiadukt</option>
+                                    <option value="zaułek">zaułek</option>
+                                    <option value="os.">os.</option>
+                                    <option value="park">park</option>
+                                    <option value="rondo">rondo</option>
+                                    <option value="tunel">tunel</option>
+                                    <option value="most">most</option>
+                                    <option value="rynek">rynek</option>
+                                    <option value="droga">droga</option>
                                 </select>
                             </div>
                         </div>
@@ -95,6 +106,19 @@
                                 id="newStreetName"
                                 placeholder="Street name"
                                 required
+                                class="input"
+                            >
+                        </div>
+                    </div>
+                </div>
+                <div class="column">
+                    <div class="field">
+                        <label for="newDistrict" class="label">District</label>
+                        <div class="control">
+                            <input
+                                type="text"
+                                id="newDistrict"
+                                placeholder="e.g., Grunwald"
                                 class="input"
                             >
                         </div>
@@ -156,6 +180,7 @@
                     <tr>
                         <th>Prefix</th>
                         <th>Street Name</th>
+                        <th>District</th>
                         <th>Mapping</th>
                         <th>Actions</th>
                     </tr>
@@ -168,6 +193,13 @@
                         </td>
                         <td>
                             <span class="name-display">{{ street.main_name_cs }}</span>
+                        </td>
+                        <td>
+                            {% if street.district %}
+                            <span class="tag is-light has-text-grey-dark"">{{ street.district }}</span>
+                            {% else %}
+                            <span class="has-text-grey-dark">—</span>
+                            {% endif %}
                         </td>
                         <td>
                             {% if street.mapped_to_default_street %}
@@ -195,17 +227,21 @@
                                 {% if street.mapped_to_default_street %}
                                     {% set mapped_prefix = '' if not street.mapped_to_default_street.prefix or street.mapped_to_default_street.prefix == '-' else street.mapped_to_default_street.prefix + ' ' %}
                                     {% set mapped_name = mapped_prefix + street.mapped_to_default_street.main_name_cs %}
+                                    {% set mapped_name_escaped = mapped_name|replace("'", "\\'") %}
+                                    {% set mapped_default_id = street.mapped_to_default_street.id %}
                                 {% else %}
                                     {% set mapped_name = '' %}
+                                    {% set mapped_name_escaped = '' %}
+                                    {% set mapped_default_id = '' %}
                                 {% endif %}
                                 <button
-                                    onclick="openMappingModal('{{ street.id }}', '{{ street.mapped_to_default_street.id if street.mapped_to_default_street else '' }}', '{{ mapped_name|replace("'", "\\'") }}')"
+                                    onclick="openMappingModal('{{ street.id }}', '{{ mapped_default_id }}', '{{ mapped_name_escaped }}')"
                                     class="button is-info is-small"
                                 >
                                     <span class="icon is-small">
                                         <i class="fas fa-link"></i>
                                     </span>
-                                    <span>Mapowanie</span>
+                                    <span>Map to default street</span>
                                 </button>
                                 {% endif %}
                                 <button

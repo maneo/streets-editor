@@ -16,6 +16,7 @@ async function editStreetInForm(streetId) {
         document.getElementById('editingStreetId').value = streetId;
         document.getElementById('newPrefix').value = streetData.prefix;
         document.getElementById('newStreetName').value = streetData.main_name_cs;
+        document.getElementById('newDistrict').value = streetData.district || '';
 
         // Convert arrays back to comma-separated strings
         const variantsStr = streetData.variants ? streetData.variants.join(', ') : '';
@@ -72,6 +73,7 @@ document.getElementById('addStreetForm').addEventListener('submit', async functi
     const editingStreetId = document.getElementById('editingStreetId').value;
     const prefix = document.getElementById('newPrefix').value;
     const mainName = document.getElementById('newStreetName').value.trim();
+    const district = document.getElementById('newDistrict').value.trim();
     const variantsText = document.getElementById('newVariants').value.trim();
     const misspellingsText = document.getElementById('newMisspellings').value.trim();
 
@@ -98,6 +100,7 @@ document.getElementById('addStreetForm').addEventListener('submit', async functi
                 body: JSON.stringify({
                     prefix: prefix,
                     main_name_cs: mainName,
+                    district: district || null,
                     variants: variants,
                     misspellings: misspellings
                 })
@@ -114,6 +117,7 @@ document.getElementById('addStreetForm').addEventListener('submit', async functi
                     decade: DECADE,
                     prefix: prefix,
                     main_name_cs: mainName,
+                    district: district || null,
                     variants: variants,
                     misspellings: misspellings
                 })

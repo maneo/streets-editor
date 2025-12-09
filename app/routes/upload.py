@@ -10,7 +10,8 @@ from app import db
 from app.models.source_maps import SourceMaps
 from app.models.street import Street
 from app.services.ai_extraction import extract_streets_from_image
-from app.services.file_handler import save_upload, validate_file
+from app.services.csv_import import import_streets_from_csv
+from app.services.file_handler import save_upload, validate_csv_file, validate_file
 
 bp = Blueprint("upload", __name__)
 
@@ -48,16 +49,6 @@ def index():
 @login_required
 def upload_file():
     """Handle file upload and initiate extraction."""
-    # Validate file
-    if "file" not in request.files:
-        flash("No file provided.", "error")
-        return redirect(url_for("upload.index"))
-
-    file = request.files["file"]
-    if file.filename == "":
-        flash("No file selected.", "error")
-        return redirect(url_for("upload.index"))
-
     # Get city and decade
     city = request.form.get("city", "").strip()
     decade = request.form.get("decade", "").strip()
@@ -66,11 +57,32 @@ def upload_file():
         flash("City and decade are required.", "error")
         return redirect(url_for("upload.index"))
 
-    # Validate file
-    validation_error = validate_file(file)
+    file = request.files.get("file")
+
+    if not file or not file.filename:
+        flash("Please select a file to upload.", "error")
+        return redirect(url_for("upload.index"))
+
+    # Detect file type from extension
+    filename_lower = file.filename.lower()
+    is_csv = filename_lower.endswith(".csv")
+    is_image = any(filename_lower.endswith(ext) for ext in [".jpg", ".jpeg", ".png"])
+
+    if not (is_csv or is_image):
+        flash("Invalid file type. Please upload a map image (JPG/PNG) or CSV file.", "error")
+        return redirect(url_for("upload.index"))
+
+    upload_mode = "csv" if is_csv else "image"
+
+    # Validate file type
+    validation_error = validate_file(file) if upload_mode == "image" else validate_csv_file(file)
+
     if validation_error:
         flash(validation_error, "error")
         return redirect(url_for("upload.index"))
+
+    # Save file locally for extraction/import
+    filepath = save_upload(file, current_user.id)
 
     # Create SourceMaps record first (to get ID for GCS filename)
     source_map = SourceMaps(
@@ -84,107 +96,145 @@ def upload_file():
     db.session.add(source_map)
     db.session.commit()  # Commit to get the ID
 
-    # Save file locally for extraction
-    filepath = save_upload(file, current_user.id)
-
-    # Start extraction (this could be async in production)
     try:
-        extracted_streets = extract_streets_from_image(filepath, city, decade)
-        # extracted_streets = []
-        # time.sleep(10)
+        if upload_mode == "image":
+            extracted_streets = extract_streets_from_image(filepath, city, decade)
 
-        # Save extracted streets to database
-        if not extracted_streets:
-            flash("No streets found in the image. You can add them manually.", "warning")
-        else:
-            current_app.logger.info(
-                f"AI extraction completed, {len(extracted_streets)} streets found"
-            )
-            # Batch insert to prevent timeouts on hosted databases like Neon
-            batch_size = current_app.config["BATCH_INSERT_SIZE"]
-            inserted_count = 0
-
-            for i in range(0, len(extracted_streets), batch_size):
-                batch = extracted_streets[i : i + batch_size]
-
-                for street_data in batch:
-                    street = Street(
-                        user_id=current_user.id,
-                        city=city,
-                        decade=decade,
-                        prefix=street_data.get("prefix", "ul."),
-                        main_name=street_data["main_name"].lower(),
-                        main_name_cs=street_data["main_name"],
-                        source="ai",
-                        source_map_id=source_map.id,
-                    )
-                    db.session.add(street)
-
-                try:
-                    db.session.commit()
-                    inserted_count += len(batch)
-                except Exception as batch_error:
-                    db.session.rollback()
-                    current_app.logger.error(
-                        f"Failed to insert batch starting at index {i}: {str(batch_error)}"
-                    )
-                    # Continue with next batch rather than failing completely
-                    continue
-
-                # Log successful batch insertion outside try block to avoid rollback
+            # Save extracted streets to database
+            if not extracted_streets:
+                flash("No streets found in the image. You can add them manually.", "warning")
+            else:
                 current_app.logger.info(
-                    f"Inserted batch of {len(batch)} streets ({inserted_count}/{len(extracted_streets)})"
+                    f"AI extraction completed, {len(extracted_streets)} streets found"
+                )
+                # Batch insert to prevent timeouts on hosted databases like Neon
+                batch_size = current_app.config["BATCH_INSERT_SIZE"]
+                inserted_count = 0
+
+                for i in range(0, len(extracted_streets), batch_size):
+                    batch = extracted_streets[i : i + batch_size]
+
+                    for street_data in batch:
+                        street = Street(
+                            user_id=current_user.id,
+                            city=city,
+                            decade=decade,
+                            prefix=street_data.get("prefix", "ul."),
+                            main_name=street_data["main_name"].lower(),
+                            main_name_cs=street_data["main_name"],
+                            source="ai",
+                            source_map_id=source_map.id,
+                        )
+                        db.session.add(street)
+
+                    try:
+                        db.session.commit()
+                        inserted_count += len(batch)
+                    except Exception as batch_error:
+                        db.session.rollback()
+                        current_app.logger.error(
+                            f"Failed to insert batch starting at index {i}: {str(batch_error)}"
+                        )
+                        # Continue with next batch rather than failing completely
+                        continue
+
+                    # Log successful batch insertion outside try block to avoid rollback
+                    current_app.logger.info(
+                        f"Inserted batch of {len(batch)} streets ({inserted_count}/{len(extracted_streets)})"
+                    )
+
+                if inserted_count > 0:
+                    # Upload file to GCS and update SourceMaps record
+                    try:
+                        # Reset file pointer to beginning for GCS upload
+                        file.seek(0)
+                        gcs_filename, gcs_url = current_app.gcs_service.upload_file(
+                            file, source_map.id, file.filename
+                        )
+
+                        # Update SourceMaps record with GCS info
+                        source_map.gcs_filename = gcs_filename
+                        source_map.gcs_url = gcs_url
+                        source_map.streets_count = inserted_count
+                        db.session.commit()
+
+                        current_app.logger.info(f"File uploaded to GCS: {gcs_filename}")
+
+                    except Exception as gcs_error:
+                        current_app.logger.error(f"Failed to upload file to GCS: {gcs_error}")
+                        # Don't fail the whole process if GCS upload fails
+                        flash(
+                            "Warning: File extraction succeeded but could not be stored for verification.",
+                            "warning",
+                        )
+
+                    flash(f"Successfully extracted {inserted_count} streets!", "success")
+                    if inserted_count < len(extracted_streets):
+                        flash(
+                            f"Warning: {len(extracted_streets) - inserted_count} streets could not be saved due to database issues.",
+                            "warning",
+                        )
+                else:
+                    flash("Failed to save any streets due to database issues.", "error")
+        else:
+            summary = import_streets_from_csv(filepath, current_user.id, city, decade)
+
+            # Upload CSV to GCS for audit
+            try:
+                file.seek(0)
+                gcs_filename, gcs_url = current_app.gcs_service.upload_file(
+                    file, source_map.id, file.filename
+                )
+                source_map.gcs_filename = gcs_filename
+                source_map.gcs_url = gcs_url
+                source_map.streets_count = summary["inserted"] + summary["updated"]
+                db.session.commit()
+            except Exception as gcs_error:
+                current_app.logger.error(f"Failed to upload CSV to GCS: {gcs_error}")
+                flash(
+                    "Warning: CSV processed but could not be stored for verification.",
+                    "warning",
                 )
 
-            if inserted_count > 0:
-                # Upload file to GCS and update SourceMaps record
-                try:
-                    # Reset file pointer to beginning for GCS upload
-                    file.seek(0)
-                    gcs_filename, gcs_url = current_app.gcs_service.upload_file(
-                        file, source_map.id, file.filename
-                    )
+            flash(
+                f"CSV processed: {summary['inserted']} inserted, {summary['updated']} updated.",
+                "success",
+            )
 
-                    # Update SourceMaps record with GCS info
-                    source_map.gcs_filename = gcs_filename
-                    source_map.gcs_url = gcs_url
-                    source_map.streets_count = inserted_count
-                    db.session.commit()
+            if summary.get("skipped_city"):
+                flash(
+                    f"{summary['skipped_city']} rows skipped due to city mismatch.",
+                    "warning",
+                )
 
-                    current_app.logger.info(f"File uploaded to GCS: {gcs_filename}")
+            unknown_prefixes = summary.get("unknown_prefixes") or []
+            if unknown_prefixes:
+                flash(
+                    f"Unknown prefixes encountered (used as-is): {', '.join(unknown_prefixes)}",
+                    "warning",
+                )
 
-                except Exception as gcs_error:
-                    current_app.logger.error(f"Failed to upload file to GCS: {gcs_error}")
-                    # Don't fail the whole process if GCS upload fails
-                    flash(
-                        "Warning: File extraction succeeded but could not be stored for verification.",
-                        "warning",
-                    )
-
-                flash(f"Successfully extracted {inserted_count} streets!", "success")
-                if inserted_count < len(extracted_streets):
-                    flash(
-                        f"Warning: {len(extracted_streets) - inserted_count} streets could not be saved due to database issues.",
-                        "warning",
-                    )
-            else:
-                flash("Failed to save any streets due to database issues.", "error")
+            errors = summary.get("errors") or []
+            if errors:
+                preview = "; ".join(errors[:3])
+                more = "" if len(errors) <= 3 else f" (+{len(errors) - 3} more)"
+                flash(f"Some rows were skipped: {preview}{more}", "warning")
 
     except Exception as e:
         error_msg = str(e)
         # Provide user-friendly messages for common errors
-        if "Rate limit exceeded" in error_msg:
+        if upload_mode == "image" and "Rate limit exceeded" in error_msg:
             flash(
                 "AI extraction is temporarily rate limited. Please wait a few minutes and try again, or add streets manually.",
                 "warning",
             )
-        elif "API request failed" in error_msg:
+        elif upload_mode == "image" and "API request failed" in error_msg:
             flash(
                 "AI extraction service is currently unavailable. You can add streets manually.",
                 "warning",
             )
         else:
-            flash(f"Error during extraction: {error_msg}", "error")
+            flash(f"Error during upload: {error_msg}", "error")
     finally:
         # Clean up uploaded file
         if os.path.exists(filepath):
@@ -205,9 +255,11 @@ def editor(city, decade):
     )
 
     # Get source map for this city/decade (if exists)
-    source_map = SourceMaps.query.filter_by(
-        user_id=current_user.id, city=city, decade=decade
-    ).first()
+    source_map = (
+        SourceMaps.query.filter_by(user_id=current_user.id, city=city, decade=decade)
+        .order_by(SourceMaps.uploaded_at.desc())
+        .first()
+    )
 
     # Check if there's a default dictionary for this city
     default_street = Street.query.filter_by(

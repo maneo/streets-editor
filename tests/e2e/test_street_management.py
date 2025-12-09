@@ -97,7 +97,7 @@ def test_navigation_between_pages(logged_in_page: Page):
     # Go back to upload
     logged_in_page.click("text=Back to Upload")
     expect(logged_in_page).to_have_url("/")
-    expect(logged_in_page.locator("h1")).to_contain_text("Upload Historical City Map")
+    expect(logged_in_page.locator("h1")).to_contain_text("Upload Streets Data")
 
 
 @pytest.mark.e2e
