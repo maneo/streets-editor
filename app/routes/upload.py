@@ -248,7 +248,9 @@ def upload_file():
 def editor(city, decade):
     """Street editor page for a specific city and decade."""
     streets = (
-        Street.query.options(joinedload(Street.mapped_to_default_street))
+        Street.query.options(
+            joinedload(Street.mapped_to_default_street), joinedload(Street.street_content)
+        )
         .filter_by(user_id=current_user.id, city=city, decade=decade, is_rejected=False)
         .order_by(Street.main_name)
         .all()

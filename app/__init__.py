@@ -51,7 +51,6 @@ def create_app(config_name="development"):
         api_street_content,
         api_streets,
         auth,
-        default_streets,
         upload,
     )
 
@@ -60,7 +59,6 @@ def create_app(config_name="development"):
     app.register_blueprint(api_streets.bp)
     app.register_blueprint(api_dictionaries.bp)
     app.register_blueprint(api_street_content.bp)
-    app.register_blueprint(default_streets.bp)
 
     # Register CLI commands
     from app.cli import register_cli_commands
