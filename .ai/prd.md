@@ -7,6 +7,7 @@ Streets Dictionary Editor to aplikacja webowa wspierająca tworzenie i edytowani
 - ręczną weryfikację i wzbogacanie listy,
 - pobranie wyników w formacie TXT lub JSON,
 - zarządzanie domyślnym słownikiem ulic współczesnych dla każdego miasta,
+- import tekstowej listy domyślnych ulic dla danej epoki
 - dodawanie rozszerzonych atrybutów do ulic domyślnych (geolokalizacja, linki zewnętrzne, dzielnica, informacje historyczne).
 
 Produkt adresuje potrzeby historyków, badaczy i twórców narzędzi OCR, którzy wymagają dokładnych słowników nazw ulic, aby zwiększyć skuteczność ekstrakcji danych z archiwalnych gazet.
@@ -37,6 +38,10 @@ Przygotowanie kompletnych list ulic dla danego miasta i dekady jest czasochłonn
 * FR-017 - System przechowuje treść ulic domyślnych w osobnej tabeli `street_content` powiązanej z ulicą relacją jeden-do-jednego.
 * FR-018 - System zapewnia widok zarządzania ulicami domyślnymi dla danego miasta, gdzie użytkownik może przeglądać listę ulic domyślnych i dodawać/edytować ich treść.
 * FR-019 - Użytkownik może edytować lub usuwać treść przypisaną do ulicy domyślnej, ale tylko dla ulic oznaczonych jako domyślne.
+* FR-020 - Użytkownik może uploadowac tekstową listę ulic
+* FR-021 - Uzytkownik moze w prosty sposob powiazac geolokalizacje z ulicą która jest częścią domyślnego słownika ulic
+* FR-022 - Uzytkownik moze w prosty sposob powiazac nazwę dzielnicy z ulicą która jest częścią domyślnego słownika ulic
+* FR-023 - Uzytkownik moze w prosty sposob powiazac ulicę która jest częścią domyślnego słownika ulic z dodatkowymi informacjami czy to w formie tekstów czy te linków
 
 ## 4. Granice produktu
 - Brak wersjonowania słowników i historii zmian (z wyjątkiem pola `updated_by` w treści ulic domyślnych).
@@ -44,7 +49,6 @@ Przygotowanie kompletnych list ulic dla danego miasta i dekady jest czasochłonn
 - Brak integracji z usługami mapowymi (Google Maps itp.) - geolokalizacja przechowywana jako współrzędne, linki do OpenStreetMap są statyczne.
 - Brak automatycznego importu danych geolokalizacyjnych - użytkownik musi wprowadzić je ręcznie.
 - Brak walidacji poprawności współrzędnych GPS przy wprowadzaniu geolokalizacji.
-- Brak automatycznego dopasowywania ulic historycznych do ulic domyślnych - oznaczenie i dodawanie treści jest ręczne.
 - Brak publicznego REST API w MVP.
 - Brak backupu danych i mechanizmów przywracania poza sesją.
 - Prefiksy ulic ograniczone do zamkniętej listy („ul.”, „pl.”, „al.”, „-”).
@@ -69,6 +73,10 @@ Przygotowanie kompletnych list ulic dla danego miasta i dekady jest czasochłonn
 | US-014 | Dodanie treści do ulicy domyślnej | Jako użytkownik chcę dodać rozszerzone informacje do ulicy domyślnej (geolokalizacja, linki, dzielnica), aby wzbogacić słownik o dodatkowe dane. | • Dla ulic oznaczonych jako domyślne dostępne jest pole do dodawania treści.<br>• Można podać: współrzędne GPS, linki zewnętrzne, dzielnicę, kod pocztowy, informacje historyczne.<br>• Treść jest opcjonalna - ulica domyślna może istnieć bez treści. |
 | US-015 | Zarządzanie ulicami domyślnymi | Jako użytkownik chcę mieć dedykowany widok do zarządzania wszystkimi ulicami domyślnymi dla miasta, aby łatwo dodawać i edytować ich treść. | • Istnieje widok listy ulic domyślnych dla danego miasta.<br>• Widok pokazuje które ulice mają przypisaną treść, a które nie.<br>• Można otworzyć modal do dodawania/edycji treści dla każdej ulicy. |
 | US-016 | Edycja treści ulicy domyślnej | Jako użytkownik chcę edytować istniejącą treść ulicy domyślnej, aby aktualizować informacje (np. zmienione linki). | • Można edytować wszystkie atrybuty treści ulicy domyślnej.<br>• Zmiany są zapisywane natychmiast po zapisie.<br>• Można również całkowicie usunąć treść ulicy domyślnej. |
+| US-017 | Upload tekstowej listy ulic domyślnych | Jako użytkownik chcę móć zuploadować tekstową listę ulic dla danej dekady, dla danego miasta. | • Jezeli uzytkownik wrzuci do formularza uploadu plik tekstowy, uruchomiona zostanie sekwencja parsowania, a nie rozpoznawanie ulic modelem.<br>• Po sparsowaniu słownik/lista ulic będzie widoczna analogicznie jak wynik działania modelu AI w US-003. |
+| US-018 | Powiązanie ulic z domyślnego słownika z ich współczesną geolokalizacją | Jako użytkownik chcę być w stanie łatwo powiązać ulicę z domyślnego słownika z jego współczesną geolokalizacją. | • W widoku edycji dla domyślnego słownika, powinna być mozliwosc uruchomienia wyszukiwania współczesnej geolokalizacji danej ulicy |
+| US-019 | Powiązanie ulic z domyślnego słownika z współczesną dzielnicą| Jako użytkownik chcę być w stanie łatwo powiązać ulicę z domyślnego słownika z jego współczesną dzielnicą danego miasta. | • W widoku edycji dla domyślnego słownika, powinna być mozliwosc uruchomienia wyszukiwania współczesnej dzielnicy |
+| US-020 | Powiązanie ulic z domyślnego słownika z dodatkowymi linkami | Jako użytkownik chcę być w stanie łatwo powiązać ulicę z domyślnego słownika z linkami do dodatkowych informacji o tej ulicy w szczególności linków. | • W widoku edycji dla domyślnego słownika, powinna być mozliwosc dodania dodatkowego tekstu i linków |
 
 ## 6. Metryki sukcesu
 - MS-001 - ≥ 80 % propozycji AI zaakceptowanych bez edycji (precyzja ekstrakcji).

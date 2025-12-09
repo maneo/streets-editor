@@ -4,10 +4,12 @@ A web application for creating and editing street dictionaries from historical c
 
 ## Features
 
-- Upload historical city map scans (JPG/PNG, up to 50 MB)
+- Upload historical city map scans (JPG/PNG, up to 50 MB) or Text file with list of streets
 - Automatic street name extraction using Gemini 2.5 Pro via OpenRouter
 - Manual verification and editing of extracted streets
 - Export dictionaries in TXT or JSON format
+- Mapping historical streets to modern streets
+- Extending dictionaries with additional information eg. links or text descriptions
 - Simple user authentication system
 
 ## Tech Stack
