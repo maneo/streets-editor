@@ -8,23 +8,6 @@
     <div class="box mb-6">
         <h2 class="subtitle is-5">Upload New Map or CSV</h2>
 
-        <p class="content is-small mb-4">
-            <strong>Map images:</strong> Upload a JPG or PNG image of a historical city map. Street names will be extracted automatically using AI.
-            <a href="{{ url_for('static', filename='images/example.png') }}" download>
-                <span class="icon is-small"><i class="fas fa-download"></i></span>
-                <span>Download example city map</span>
-            </a>
-        </p>
-        <p class="content is-small mb-4">
-            <strong>CSV format:</strong> <code>city,prefix,street_name_cs,district</code>.
-            Unknown prefixes are kept as-is. City rows that don't match the chosen city are skipped.
-        </p>
-        <p class="content is-small mb-4">
-            <strong>JSON format:</strong> Array of street objects with fields: <code>main_name</code>, <code>main_name_cs</code>, <code>variants</code>, <code>misspellings</code>, <code>prefix</code>, <code>display_name</code>.
-            Duplicate streets are skipped. All fields are required.
-        </p>
-
-
         <form method="POST" action="{{ url_for('upload.upload_file') }}" enctype="multipart/form-data">
             <div class="field">
                 <label for="city" class="label">City</label>
@@ -81,7 +64,34 @@
                         </label>
                     </div>
                 </div>
-                <p class="help">Accepted formats: Map images (JPG, PNG), CSV street lists, or JSON dictionaries</p>
+
+                <details class="mt-4">
+                    <summary class="is-clickable has-text-grey" style="cursor: pointer;">
+                        <span class="icon is-small">
+                            <i class="fas fa-info-circle"></i>
+                        </span>
+                        <span>More information about file formats</span>
+                    </summary>
+                    <div class="mt-3">
+                        <p class="help">Accepted formats: Map images (JPG, PNG), CSV street lists, or JSON dictionaries</p>
+                        <p class="content is-small mb-4">
+                            <strong>Map images:</strong> Upload a JPG or PNG image of a historical city map. Street names will be extracted automatically using AI.
+                            <a href="{{ url_for('static', filename='images/example.png') }}" download>
+                                <span class="icon is-small"><i class="fas fa-download"></i></span>
+                                <span>Download example city map</span>
+                            </a>
+                        </p>
+                        <p class="content is-small mb-4">
+                            <strong>CSV format:</strong> <code>city,prefix,street_name_cs,district</code>.
+                            Unknown prefixes are kept as-is. City rows that don't match the chosen city are skipped.
+                        </p>
+                        <p class="content is-small mb-4">
+                            <strong>JSON format:</strong> Array of street objects with fields: <code>main_name</code>, <code>main_name_cs</code>, <code>variants</code>, <code>misspellings</code>, <code>prefix</code>, <code>display_name</code>.
+                            Duplicate streets are skipped. All fields are required.
+                        </p>
+                    </div>
+                </details>
+
             </div>
 
             <div class="field">
