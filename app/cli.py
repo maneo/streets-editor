@@ -12,6 +12,61 @@ from app.models.street_content import StreetContent
 from app.models.user import User
 from app.services.ai_extraction import extract_streets_from_image
 from app.services.geocoding_service import GeocodingService
+from app.services.street_matching_service import StreetMatchingService
+
+
+def _get_user_or_default(user_id=None):
+    """Get user by ID or return first user.
+
+    Args:
+        user_id: Optional user ID
+
+    Returns:
+        tuple: (user, error_message) where error_message is None on success
+    """
+    if user_id:
+        user = User.query.get(user_id)
+        if not user:
+            return None, f"User with ID {user_id} not found."
+    else:
+        user = User.query.first()
+        if not user:
+            return None, "No users found in database."
+    return user, None
+
+
+def _get_bucket_name_for_env(app, env):
+    """Get bucket name for environment from config.
+
+    Args:
+        app: Flask application instance
+        env: Environment name (dev, test, prod)
+
+    Returns:
+        tuple: (bucket_name, error_message) where error_message is None on success
+    """
+    bucket_config_key = f"GCS_BUCKET_{env.upper()}"
+    bucket_name = app.config.get(bucket_config_key)
+    if not bucket_name:
+        return (
+            None,
+            f"Bucket not configured for environment '{env}'. Make sure {bucket_config_key} is set.",
+        )
+    return bucket_name, None
+
+
+def _format_street_display_name(street):
+    """Format street name with prefix for display.
+
+    Args:
+        street: Street model instance
+
+    Returns:
+        str: Formatted street name
+    """
+    if street.prefix and street.prefix != "-":
+        return f"{street.prefix} {street.main_name_cs}"
+    return street.main_name_cs
 
 
 def register_cli_commands(app):
@@ -212,33 +267,16 @@ def register_cli_commands(app):
             flask delete-bucket --env test
             flask delete-bucket --env prod
         """
-        # Map env to bucket config key
-        bucket_config_key = f"GCS_BUCKET_{env.upper()}"
-        bucket_name = app.config.get(bucket_config_key)
-
-        if not bucket_name:
-            click.echo(
-                f"❌ Bucket not configured for environment '{env}'. Make sure {bucket_config_key} is set."
-            )
+        bucket_name, error = _get_bucket_name_for_env(app, env)
+        if error:
+            click.echo(f"❌ {error}")
             return
 
         try:
-            # Initialize GCS client
+            # Use GCS service to delete bucket
             gcs_service = app.gcs_service
-            client = gcs_service.client
-
-            # Get bucket
-            bucket = client.bucket(bucket_name)
-
-            # Check if bucket exists
-            if not bucket.exists():
-                click.echo(f"❌ Bucket '{bucket_name}' does not exist.")
-                return
-
-            # Delete bucket (force=True deletes all objects)
             click.echo(f"Deleting bucket '{bucket_name}' and all its contents...")
-            bucket.delete(force=True)
-
+            gcs_service.delete_bucket_with_contents(bucket_name)
             click.echo(f"✅ Bucket '{bucket_name}' deleted successfully!")
 
         except Exception as e:
@@ -263,32 +301,17 @@ def register_cli_commands(app):
             flask recreate-bucket --env test
             flask recreate-bucket --env prod
         """
-        # Map env to bucket config key
-        bucket_config_key = f"GCS_BUCKET_{env.upper()}"
-        bucket_name = app.config.get(bucket_config_key)
-
-        if not bucket_name:
-            click.echo(
-                f"❌ Bucket not configured for environment '{env}'. Make sure {bucket_config_key} is set."
-            )
+        bucket_name, error = _get_bucket_name_for_env(app, env)
+        if error:
+            click.echo(f"❌ {error}")
             return
 
         try:
-            # Initialize GCS client
+            # Use GCS service to create bucket with public access
             gcs_service = app.gcs_service
-            client = gcs_service.client
-            project_id = app.config.get("GCP_PROJECT_ID")
-
-            # Create bucket in Europe West 1 region
             click.echo(f"Creating bucket '{bucket_name}' in europe-west1 region...")
-            bucket = client.create_bucket(bucket_name, project=project_id, location="europe-west1")
-
-            # Set public read access for all users
             click.echo("Setting public read access...")
-            policy = bucket.get_iam_policy()
-            policy.bindings.append({"role": "roles/storage.objectViewer", "members": ["allUsers"]})
-            bucket.set_iam_policy(policy)
-
+            gcs_service.create_public_bucket(bucket_name, location="europe-west1")
             click.echo(f"✅ Bucket '{bucket_name}' recreated successfully with public read access!")
 
         except Exception as e:
@@ -308,17 +331,11 @@ def register_cli_commands(app):
             flask enrich-streets-geo --city "Warszawa" --user-id 1
         """
         with app.app_context():
-            # Get user
-            if user_id:
-                user = User.query.get(user_id)
-                if not user:
-                    click.echo(f"❌ User with ID {user_id} not found.")
-                    return
-            else:
-                user = User.query.first()
-                if not user:
-                    click.echo("❌ No users found in database.")
-                    return
+            # Get user using utility function
+            user, error = _get_user_or_default(user_id)
+            if error:
+                click.echo(f"❌ {error}")
+                return
 
             click.echo(f"Enriching streets for city: {city} (User: {user.email})")
 
@@ -347,11 +364,7 @@ def register_cli_commands(app):
             failed_count = 0
 
             for idx, street in enumerate(streets, 1):
-                display_prefix = (
-                    "" if not street.prefix or street.prefix == "-" else f"{street.prefix} "
-                )
-                display_name = f"{display_prefix}{street.main_name_cs}".strip()
-
+                display_name = _format_street_display_name(street)
                 click.echo(f"Enriching street {idx}/{len(streets)}: {display_name}...", nl=False)
 
                 # Geocode the street
@@ -381,3 +394,94 @@ def register_cli_commands(app):
             click.echo(f"   Enriched: {success_count}/{len(streets)} streets")
             if failed_count > 0:
                 click.echo(f"   Failed: {failed_count} streets")
+
+    @app.cli.command("match-streets-to-default")
+    @click.option("--city", required=True, help="City name")
+    @click.option("--decade", required=True, help="Decade (e.g. '1940-1949')")
+    @click.option("--user-id", type=int, help="User ID (defaults to first user)")
+    @click.option("--dry-run", is_flag=True, help="Perform matching without saving to database")
+    def match_streets_to_default(city, decade, user_id, dry_run):
+        """Match streets from a city/decade to the default street dictionary.
+
+        This command matches streets from a specific city and decade to the
+        default streets dictionary for that city. Matching is done by comparing
+        prefix and main_name (case-insensitive).
+
+        Usage:
+            flask match-streets-to-default --city "Poznań" --decade "1940-1949"
+            flask match-streets-to-default --city "Poznań" --decade "1940-1949" --dry-run
+            flask match-streets-to-default --city "Poznań" --decade "1940-1949" --user-id 1
+        """
+        with app.app_context():
+            # Get user using utility function
+            user, error = _get_user_or_default(user_id)
+            if error:
+                click.echo(f"❌ {error}")
+                return
+
+            # Initialize street matching service
+            matching_service = StreetMatchingService(db.session)
+
+            # Get default streets lookup
+            default_lookup, default_streets = matching_service.get_default_streets_lookup(
+                user.id, city
+            )
+
+            if not default_streets:
+                click.echo(f"❌ No default streets found for city '{city}'.")
+                click.echo("   Please import default streets for this city first.")
+                return
+
+            click.echo("Matching streets to default dictionary:")
+            click.echo(f"  City: {city}")
+            click.echo(f"  Decade: {decade}")
+            click.echo(f"  User: {user.email}")
+            click.echo(f"  Mode: {'DRY RUN' if dry_run else 'LIVE UPDATE'}")
+            click.echo(f"  Default streets available: {len(default_streets)}")
+            click.echo()
+
+            # Get source streets that need matching
+            source_streets = matching_service.find_unmatched_source_streets(user.id, city, decade)
+
+            if not source_streets:
+                click.echo(f"No streets found to match for decade '{decade}'.")
+                click.echo("   Either all streets are already mapped or no streets exist.")
+                return
+
+            click.echo(f"Processing {len(source_streets)} streets...")
+            click.echo("")
+
+            # Match streets using the service
+            matches, not_matched = matching_service.match_streets(
+                source_streets, default_lookup, save=not dry_run
+            )
+
+            # Display results
+            for source_street, default_street in matches:
+                source_display = _format_street_display_name(source_street)
+                default_display = _format_street_display_name(default_street)
+
+                if dry_run:
+                    click.echo(f"  ✓ {source_display} → {default_display}")
+                else:
+                    click.echo(f"  ✅ {source_display} → {default_display} (saved)")
+
+            for source_street in not_matched:
+                source_display = _format_street_display_name(source_street)
+                click.echo(f"  ✗ {source_display} (no match found)")
+
+            # Show summary
+            click.echo()
+            click.echo("=" * 60)
+            click.echo("Summary:")
+            click.echo(f"  Total streets processed: {len(source_streets)}")
+            click.echo(f"  Successfully matched: {len(matches)}")
+            click.echo(f"  Not matched: {len(not_matched)}")
+            if dry_run:
+                click.echo()
+                click.echo("  ℹ️  This was a dry run. No changes were saved to the database.")
+                click.echo("  Run without --dry-run to save the mappings.")
+            else:
+                click.echo()
+                click.echo("  ✅ All mappings have been saved to the database!")
+            click.echo("=" * 60)

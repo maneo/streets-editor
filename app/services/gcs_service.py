@@ -86,3 +86,40 @@ class GCSService:
 
             current_app.logger.error(f"Failed to check if file {gcs_filename} exists in GCS: {e}")
             return False
+
+    def delete_bucket_with_contents(self, bucket_name: str) -> None:
+        """
+        Delete a GCS bucket and all its contents.
+
+        Args:
+            bucket_name: Name of the bucket to delete
+
+        Raises:
+            Exception: If bucket doesn't exist or deletion fails
+        """
+        bucket = self.client.bucket(bucket_name)
+
+        if not bucket.exists():
+            raise ValueError(f"Bucket '{bucket_name}' does not exist.")
+
+        # Delete bucket (force=True deletes all objects)
+        bucket.delete(force=True)
+
+    def create_public_bucket(self, bucket_name: str, location: str = "europe-west1") -> None:
+        """
+        Create a GCS bucket with public read access.
+
+        Args:
+            bucket_name: Name of the bucket to create
+            location: GCS location/region (default: europe-west1)
+
+        Raises:
+            Exception: If bucket creation or permission setup fails
+        """
+        # Create bucket in specified region
+        bucket = self.client.create_bucket(bucket_name, project=self.project_id, location=location)
+
+        # Set public read access for all users
+        policy = bucket.get_iam_policy()
+        policy.bindings.append({"role": "roles/storage.objectViewer", "members": ["allUsers"]})
+        bucket.set_iam_policy(policy)
