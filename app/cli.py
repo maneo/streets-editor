@@ -8,8 +8,10 @@ import requests
 from app import db
 from app.models.source_maps import SourceMaps
 from app.models.street import Street
+from app.models.street_content import StreetContent
 from app.models.user import User
 from app.services.ai_extraction import extract_streets_from_image
+from app.services.geocoding_service import GeocodingService
 
 
 def register_cli_commands(app):
@@ -291,3 +293,91 @@ def register_cli_commands(app):
 
         except Exception as e:
             click.echo(f"❌ Failed to recreate bucket: {str(e)}")
+
+    @app.cli.command("enrich-streets-geo")
+    @click.option("--city", required=True, help="City name")
+    @click.option("--user-id", type=int, help="User ID (defaults to first user if not specified)")
+    def enrich_streets_geo(city, user_id):
+        """Enrich default streets with geolocation data using Nominatim API.
+
+        This command processes all default streets for a city that don't have
+        street_content yet, and enriches them with latitude/longitude.
+
+        Usage:
+            flask enrich-streets-geo --city "Poznań"
+            flask enrich-streets-geo --city "Warszawa" --user-id 1
+        """
+        with app.app_context():
+            # Get user
+            if user_id:
+                user = User.query.get(user_id)
+                if not user:
+                    click.echo(f"❌ User with ID {user_id} not found.")
+                    return
+            else:
+                user = User.query.first()
+                if not user:
+                    click.echo("❌ No users found in database.")
+                    return
+
+            click.echo(f"Enriching streets for city: {city} (User: {user.email})")
+
+            # Get all default streets for the city that don't have street_content yet
+            streets = (
+                Street.query.filter_by(
+                    user_id=user.id, city=city, is_default_street=True, is_rejected=False
+                )
+                .outerjoin(StreetContent)
+                .filter(StreetContent.id.is_(None))
+                .order_by(Street.main_name)
+                .all()
+            )
+
+            if not streets:
+                click.echo(f"No default streets found for {city} without content.")
+                return
+
+            click.echo(f"Found {len(streets)} streets to enrich.")
+            click.echo()
+
+            # Initialize geocoding service
+            geocoding_service = GeocodingService()
+
+            success_count = 0
+            failed_count = 0
+
+            for idx, street in enumerate(streets, 1):
+                display_prefix = (
+                    "" if not street.prefix or street.prefix == "-" else f"{street.prefix} "
+                )
+                display_name = f"{display_prefix}{street.main_name_cs}".strip()
+
+                click.echo(f"Enriching street {idx}/{len(streets)}: {display_name}...", nl=False)
+
+                # Geocode the street
+                result = geocoding_service.geocode_street(
+                    street.main_name_cs, street.city, street.prefix
+                )
+
+                if result:
+                    # Create or update street content
+                    street_content = StreetContent(
+                        street_id=street.id,
+                        latitude=result["latitude"],
+                        longitude=result["longitude"],
+                        updated_by=user.id,
+                    )
+                    db.session.add(street_content)
+                    db.session.commit()
+
+                    click.echo(f" ✅ ({result['latitude']:.6f}, {result['longitude']:.6f})")
+                    success_count += 1
+                else:
+                    click.echo(" ❌ Not found")
+                    failed_count += 1
+
+            click.echo()
+            click.echo("✅ Enrichment complete!")
+            click.echo(f"   Enriched: {success_count}/{len(streets)} streets")
+            if failed_count > 0:
+                click.echo(f"   Failed: {failed_count} streets")

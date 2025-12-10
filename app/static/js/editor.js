@@ -1,21 +1,42 @@
 // Editor JavaScript for managing streets
 
-// Edit street in form
-async function editStreetInForm(streetId) {
+// Open street modal for adding or editing
+async function openStreetModal(streetId) {
+    const modal = document.getElementById('streetModal');
+    if (!modal) return;
+
+    // Reset form
+    document.getElementById('streetForm').reset();
+    document.getElementById('streetId').value = '';
+    document.getElementById('isDefaultStreet').value = 'false';
+    clearStreetModalStatus();
+
+    // Hide extended fields by default
+    document.getElementById('defaultStreetFields').style.display = 'none';
+
+    if (!streetId || streetId === 'null') {
+        // Add new street mode
+        document.getElementById('streetModalTitle').textContent = 'Add New Street';
+        document.getElementById('submitButton').textContent = 'Add Street';
+        modal.classList.add('is-active');
+        return;
+    }
+
+    // Edit existing street mode
     try {
         // Fetch street data
         const response = await fetch(`/api/streets/${streetId}`);
         if (!response.ok) {
-            alert('Failed to load street data.');
+            showStreetModalStatus('Failed to load street data.', 'error');
             return;
         }
 
         const streetData = await response.json();
 
-        // Fill form fields
-        document.getElementById('editingStreetId').value = streetId;
-        document.getElementById('newPrefix').value = streetData.prefix;
-        document.getElementById('newStreetName').value = streetData.main_name_cs;
+        // Fill basic form fields
+        document.getElementById('streetId').value = streetId;
+        document.getElementById('newPrefix').value = streetData.prefix || 'ul.';
+        document.getElementById('newStreetName').value = streetData.main_name_cs || '';
         document.getElementById('newDistrict').value = streetData.district || '';
 
         // Convert arrays back to comma-separated strings
@@ -25,124 +46,61 @@ async function editStreetInForm(streetId) {
         document.getElementById('newVariants').value = variantsStr;
         document.getElementById('newMisspellings').value = misspellingsStr;
 
-        // Update form UI for editing
-        document.getElementById('formTitle').textContent = 'Edit Street';
+        // Set modal title with street name
+        const prefixDisplay = streetData.prefix && streetData.prefix !== '-' ? `${streetData.prefix} ` : '';
+        document.getElementById('streetModalTitle').textContent = `Edit Street: ${prefixDisplay}${streetData.main_name_cs}`;
         document.getElementById('submitButton').textContent = 'Save Changes';
 
-        // Add cancel button if it doesn't exist
-        const formButtons = document.getElementById('formButtons');
-        if (!document.getElementById('cancelEditButton')) {
-            const cancelButton = document.createElement('button');
-            cancelButton.type = 'button';
-            cancelButton.id = 'cancelEditButton';
-            cancelButton.className = 'px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 mr-3';
-            cancelButton.textContent = 'Cancel Edit';
-            cancelButton.onclick = cancelEdit;
-            formButtons.insertBefore(cancelButton, formButtons.firstChild);
+        // Check if this is a default street
+        const isDefault = streetData.is_default_street || false;
+        document.getElementById('isDefaultStreet').value = isDefault.toString();
+
+        if (isDefault) {
+            // Show extended fields
+            document.getElementById('defaultStreetFields').style.display = 'block';
+
+            // Fetch content if it exists
+            try {
+                const contentResponse = await fetch(`/api/street-content/${streetId}`);
+                if (contentResponse.ok || contentResponse.status === 404) {
+                    const contentData = await contentResponse.json();
+                    const content = contentData.content || {};
+
+                    // Fill extended fields
+                    document.getElementById('contentLatitude').value = content.latitude || '';
+                    document.getElementById('contentLongitude').value = content.longitude || '';
+                    document.getElementById('contentPostalCode').value = content.postal_code || '';
+
+                    const linksStr = content.external_links ? content.external_links.join(', ') : '';
+                    document.getElementById('contentExternalLinks').value = linksStr;
+
+                    document.getElementById('contentHistoricalInfo').value = content.historical_info || '';
+                }
+            } catch (error) {
+                console.error('Error loading street content:', error);
+                // Continue without content data
+            }
         }
 
-        // Scroll to form
-        document.getElementById('addStreetForm').scrollIntoView({ behavior: 'smooth' });
+        // Show modal
+        modal.classList.add('is-active');
     } catch (error) {
         console.error('Error loading street data:', error);
-        alert('An error occurred while loading street data.');
+        showStreetModalStatus('An error occurred while loading street data.', 'error');
     }
 }
 
-// Cancel editing and reset form
-function cancelEdit() {
-    // Clear form
-    document.getElementById('addStreetForm').reset();
-    document.getElementById('editingStreetId').value = '';
-
-    // Reset UI
-    document.getElementById('formTitle').textContent = 'Add New Street';
-    document.getElementById('submitButton').textContent = 'Add Street';
-
-    // Remove cancel button
-    const cancelButton = document.getElementById('cancelEditButton');
-    if (cancelButton) {
-        cancelButton.remove();
+// Close street modal
+function closeStreetModal() {
+    const modal = document.getElementById('streetModal');
+    if (modal) {
+        modal.classList.remove('is-active');
     }
+    document.getElementById('streetForm').reset();
+    document.getElementById('streetId').value = '';
+    document.getElementById('isDefaultStreet').value = 'false';
+    clearStreetModalStatus();
 }
-
-// Handle form submission (add or edit street)
-document.getElementById('addStreetForm').addEventListener('submit', async function(e) {
-    e.preventDefault();
-
-    const editingStreetId = document.getElementById('editingStreetId').value;
-    const prefix = document.getElementById('newPrefix').value;
-    const mainName = document.getElementById('newStreetName').value.trim();
-    const district = document.getElementById('newDistrict').value.trim();
-    const variantsText = document.getElementById('newVariants').value.trim();
-    const misspellingsText = document.getElementById('newMisspellings').value.trim();
-
-    if (!mainName) {
-        alert('Please enter a street name.');
-        return;
-    }
-
-    // Parse comma-separated values into arrays
-    const variants = variantsText ? variantsText.split(',').map(v => v.trim()).filter(v => v) : [];
-    const misspellings = misspellingsText ? misspellingsText.split(',').map(m => m.trim()).filter(m => m) : [];
-
-    const isEditing = editingStreetId !== '';
-
-    try {
-        let response;
-        if (isEditing) {
-            // Update existing street
-            response = await fetch(`/api/streets/${editingStreetId}`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    prefix: prefix,
-                    main_name_cs: mainName,
-                    district: district || null,
-                    variants: variants,
-                    misspellings: misspellings
-                })
-            });
-        } else {
-            // Add new street
-            response = await fetch('/api/streets', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    city: CITY,
-                    decade: DECADE,
-                    prefix: prefix,
-                    main_name_cs: mainName,
-                    district: district || null,
-                    variants: variants,
-                    misspellings: misspellings
-                })
-            });
-        }
-
-        const data = await response.json();
-
-        if (response.ok) {
-            if (isEditing) {
-                // Reset form to add mode and reload page
-                cancelEdit();
-            } else {
-                // Clear form and reload page to show new street
-                document.getElementById('addStreetForm').reset();
-            }
-            window.location.reload();
-        } else {
-            alert(data.error || `Failed to ${isEditing ? 'update' : 'add'} street.`);
-        }
-    } catch (error) {
-        console.error('Error:', error);
-        alert(`An error occurred while ${isEditing ? 'updating' : 'adding'} the street.`);
-    }
-});
 
 
 // Delete street
@@ -389,104 +347,242 @@ async function removeMapping() {
     }
 }
 
-// Content management functions for default streets
+// Show status message in street modal
+function showStreetModalStatus(message, type = 'info') {
+    const statusDiv = document.getElementById('streetModalStatus');
+    const statusMessage = document.getElementById('streetModalStatusMessage');
 
-// Edit content for a street
-async function editContent(streetId) {
-    try {
-        // Fetch existing content if it exists
-        const response = await fetch(`/api/street-content/${streetId}`);
-        if (!response.ok && response.status !== 404) {
-            alert('Failed to load street content.');
-            return;
-        }
+    // Remove existing type classes
+    statusDiv.classList.remove('is-success', 'is-danger', 'is-warning', 'is-info');
 
-        const data = await response.json();
-        const content = data.content || {};
+    // Add appropriate type class
+    if (type === 'success') {
+        statusDiv.classList.add('is-success');
+    } else if (type === 'error') {
+        statusDiv.classList.add('is-danger');
+    } else if (type === 'warning') {
+        statusDiv.classList.add('is-warning');
+    } else {
+        statusDiv.classList.add('is-info');
+    }
 
-        // Fill form fields
-        document.getElementById('contentStreetId').value = streetId;
-        document.getElementById('contentLatitude').value = content.latitude || '';
-        document.getElementById('contentLongitude').value = content.longitude || '';
-        document.getElementById('contentDistrict').value = content.district || '';
-        document.getElementById('contentPostalCode').value = content.postal_code || '';
+    statusMessage.textContent = message;
+    statusDiv.style.display = 'block';
 
-        const linksStr = content.external_links ? content.external_links.join(', ') : '';
-        document.getElementById('contentExternalLinks').value = linksStr;
-
-        document.getElementById('contentHistoricalInfo').value = content.historical_info || '';
-
-        // Update modal title
-        const modalTitle = document.getElementById('modalTitle');
-        modalTitle.textContent = content.id ? 'Edit Street Content' : 'Add Street Content';
-
-        // Show modal
-        document.getElementById('contentModal').classList.add('is-active');
-    } catch (error) {
-        console.error('Error loading street content:', error);
-        alert('An error occurred while loading street content.');
+    // Auto-hide success messages after 5 seconds
+    if (type === 'success') {
+        setTimeout(() => {
+            clearStreetModalStatus();
+        }, 5000);
     }
 }
 
-// Close content modal
-function closeContentModal() {
-    document.getElementById('contentModal').classList.remove('is-active');
-    document.getElementById('contentForm').reset();
-    document.getElementById('contentStreetId').value = '';
+// Clear status message in street modal
+function clearStreetModalStatus() {
+    const statusDiv = document.getElementById('streetModalStatus');
+    statusDiv.style.display = 'none';
+    statusDiv.classList.remove('is-success', 'is-danger', 'is-warning', 'is-info');
 }
 
-// Handle content form submission
-const contentForm = document.getElementById('contentForm');
-if (contentForm) {
-    contentForm.addEventListener('submit', async function(e) {
-    e.preventDefault();
+// Enrich street with geolocation
+async function enrichStreetGeo() {
+    const streetId = document.getElementById('streetId').value;
 
-    const streetId = document.getElementById('contentStreetId').value;
-    const latitude = document.getElementById('contentLatitude').value.trim();
-    const longitude = document.getElementById('contentLongitude').value.trim();
-    const district = document.getElementById('contentDistrict').value.trim();
-    const postalCode = document.getElementById('contentPostalCode').value.trim();
-    const linksText = document.getElementById('contentExternalLinks').value.trim();
-    const historicalInfo = document.getElementById('contentHistoricalInfo').value.trim();
-
-    // Parse comma-separated links into array
-    const externalLinks = linksText ? linksText.split(',').map(l => l.trim()).filter(l => l) : [];
-
-    const payload = {
-        district: district || null,
-        postal_code: postalCode || null,
-        external_links: externalLinks,
-        historical_info: historicalInfo || null,
-    };
-
-    // Add geolocation if provided
-    if (latitude) {
-        payload.latitude = parseFloat(latitude);
+    if (!streetId) {
+        showStreetModalStatus('No street selected for enrichment.', 'error');
+        return;
     }
-    if (longitude) {
-        payload.longitude = parseFloat(longitude);
-    }
+
+    const enrichButton = document.getElementById('enrichGeoButton');
+    const originalButtonContent = enrichButton.innerHTML;
+
+    // Disable button and show loading state
+    enrichButton.disabled = true;
+    enrichButton.innerHTML = '<span class="icon is-small"><i class="fas fa-spinner fa-spin"></i></span><span>Enriching...</span>';
 
     try {
-        const response = await fetch(`/api/street-content/${streetId}`, {
-            method: 'PUT',
+        const response = await fetch(`/api/streets/geolocations/${streetId}`, {
+            method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(payload)
+            }
         });
 
         const data = await response.json();
 
-        if (response.ok) {
-            closeContentModal();
-            window.location.reload();
+        if (response.ok && data.success) {
+            // Populate form fields with geolocation data
+            document.getElementById('contentLatitude').value = data.latitude;
+            document.getElementById('contentLongitude').value = data.longitude;
+
+            // Show success message
+            showStreetModalStatus(
+                `Geolocation enriched successfully! Latitude: ${data.latitude}, Longitude: ${data.longitude}`,
+                'success'
+            );
         } else {
-            alert(data.error || 'Failed to save street content.');
+            // Handle error or already has geolocation
+            if (data.latitude && data.longitude) {
+                // Street already has geolocation
+                document.getElementById('contentLatitude').value = data.latitude;
+                document.getElementById('contentLongitude').value = data.longitude;
+                showStreetModalStatus(data.message || 'Street already has geolocation data.', 'info');
+            } else {
+                showStreetModalStatus(
+                    data.message || 'Failed to enrich geolocation. Street may not be found in OpenStreetMap.',
+                    'error'
+                );
+            }
         }
     } catch (error) {
-        console.error('Error:', error);
-        alert('An error occurred while saving street content.');
+        console.error('Error enriching geolocation:', error);
+        showStreetModalStatus('An error occurred while enriching geolocation.', 'error');
+    } finally {
+        // Restore button state
+        enrichButton.disabled = false;
+        enrichButton.innerHTML = originalButtonContent;
     }
+}
+
+// Handle unified street form submission
+const streetForm = document.getElementById('streetForm');
+if (streetForm) {
+    streetForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const streetId = document.getElementById('streetId').value;
+        const prefix = document.getElementById('newPrefix').value;
+        const mainName = document.getElementById('newStreetName').value.trim();
+        const district = document.getElementById('newDistrict').value.trim();
+        const variantsText = document.getElementById('newVariants').value.trim();
+        const misspellingsText = document.getElementById('newMisspellings').value.trim();
+        const isDefault = document.getElementById('isDefaultStreet').value === 'true';
+
+        if (!mainName) {
+            showStreetModalStatus('Please enter a street name.', 'error');
+            return;
+        }
+
+        // Parse comma-separated values into arrays
+        const variants = variantsText ? variantsText.split(',').map(v => v.trim()).filter(v => v) : [];
+        const misspellings = misspellingsText ? misspellingsText.split(',').map(m => m.trim()).filter(m => m) : [];
+
+        const isEditing = streetId !== '';
+
+        try {
+            // Save street data
+            let response;
+            if (isEditing) {
+                // Update existing street
+                response = await fetch(`/api/streets/${streetId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        prefix: prefix,
+                        main_name_cs: mainName,
+                        district: district || null,
+                        variants: variants,
+                        misspellings: misspellings
+                    })
+                });
+            } else {
+                // Add new street
+                response = await fetch('/api/streets', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        city: CITY,
+                        decade: DECADE,
+                        prefix: prefix,
+                        main_name_cs: mainName,
+                        district: district || null,
+                        variants: variants,
+                        misspellings: misspellings
+                    })
+                });
+            }
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                showStreetModalStatus(data.error || `Failed to ${isEditing ? 'update' : 'add'} street.`, 'error');
+                return;
+            }
+
+            // Get the street ID (either from editing or from creation response)
+            const savedStreetId = isEditing ? streetId : data.id;
+
+            // If this is a default street, save content data
+            if (isDefault && savedStreetId) {
+                const latitude = document.getElementById('contentLatitude').value.trim();
+                const longitude = document.getElementById('contentLongitude').value.trim();
+                const postalCode = document.getElementById('contentPostalCode').value.trim();
+                const linksText = document.getElementById('contentExternalLinks').value.trim();
+                const historicalInfo = document.getElementById('contentHistoricalInfo').value.trim();
+
+                // Parse comma-separated links into array
+                const externalLinks = linksText ? linksText.split(',').map(l => l.trim()).filter(l => l) : [];
+
+                const contentPayload = {
+                    postal_code: postalCode || null,
+                    external_links: externalLinks,
+                    historical_info: historicalInfo || null,
+                };
+
+                // Add geolocation if provided
+                if (latitude) {
+                    contentPayload.latitude = parseFloat(latitude);
+                }
+                if (longitude) {
+                    contentPayload.longitude = parseFloat(longitude);
+                }
+
+                try {
+                    const contentResponse = await fetch(`/api/street-content/${savedStreetId}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(contentPayload)
+                    });
+
+                    if (!contentResponse.ok) {
+                        const contentData = await contentResponse.json();
+                        showStreetModalStatus(
+                            `Street saved but content update failed: ${contentData.error || 'Unknown error'}`,
+                            'warning'
+                        );
+                        // Still reload to show the street was saved
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 2000);
+                        return;
+                    }
+                } catch (error) {
+                    console.error('Error saving street content:', error);
+                    showStreetModalStatus('Street saved but content update failed.', 'warning');
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 2000);
+                    return;
+                }
+            }
+
+            // Success - show message and reload
+            showStreetModalStatus(
+                `Street ${isEditing ? 'updated' : 'created'} successfully!`,
+                'success'
+            );
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+        } catch (error) {
+            console.error('Error:', error);
+            showStreetModalStatus(`An error occurred while ${isEditing ? 'updating' : 'adding'} the street.`, 'error');
+        }
     });
 }

@@ -58,112 +58,26 @@
     </div>
     {% endif %}
 
-    <!-- Add Street Form -->
-    <div class="box mb-6">
-        <h2 id="formTitle" class="subtitle is-5 has-text-grey-light">Add New Street</h2>
-        <form id="addStreetForm">
-            <input type="hidden" id="editingStreetId">
-            <div class="columns">
-                <div class="column">
-                    <div class="field">
-                        <label for="newPrefix" class="label">Prefix</label>
-                        <div class="control">
-                            <div class="select is-fullwidth">
-                                <select id="newPrefix">
-                                    <option value="ul.">ul.</option>
-                                    <option value="pl.">pl.</option>
-                                    <option value="al.">al.</option>
-                                    <option value="-">-</option>
-                                    <option value="skwer">skwer</option>
-                                    <option value="wiadukt">wiadukt</option>
-                                    <option value="zaułek">zaułek</option>
-                                    <option value="os.">os.</option>
-                                    <option value="park">park</option>
-                                    <option value="rondo">rondo</option>
-                                    <option value="tunel">tunel</option>
-                                    <option value="most">most</option>
-                                    <option value="rynek">rynek</option>
-                                    <option value="droga">droga</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="column">
-                    <div class="field">
-                        <label for="newStreetName" class="label">Street Name *</label>
-                        <div class="control">
-                            <input
-                                type="text"
-                                id="newStreetName"
-                                placeholder="Street name"
-                                required
-                                class="input"
-                            >
-                        </div>
-                    </div>
-                </div>
-                <div class="column">
-                    <div class="field">
-                        <label for="newDistrict" class="label">District</label>
-                        <div class="control">
-                            <input
-                                type="text"
-                                id="newDistrict"
-                                placeholder="e.g., Grunwald"
-                                class="input"
-                            >
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="columns">
-                <div class="column">
-                    <div class="field">
-                        <label for="newVariants" class="label">Variants</label>
-                        <div class="control">
-                            <input
-                                type="text"
-                                id="newVariants"
-                                placeholder="Comma-separated variants (optional)"
-                                class="input"
-                            >
-                        </div>
-                    </div>
-                </div>
-                <div class="column">
-                    <div class="field">
-                        <label for="newMisspellings" class="label">Misspellings</label>
-                        <div class="control">
-                            <input
-                                type="text"
-                                id="newMisspellings"
-                                placeholder="Comma-separated misspellings (optional)"
-                                class="input"
-                            >
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div id="formButtons" class="field is-grouped is-grouped-right">
-                <div class="control">
-                    <button
-                        type="submit"
-                        id="submitButton"
-                        class="button is-primary"
-                    >
-                        Add Street
-                    </button>
-                </div>
-            </div>
-        </form>
-    </div>
-
     <!-- Streets List -->
     <div class="box">
-        <h2 class="subtitle is-5 has-text-grey-light">
-            Streets ({{ streets|length }})
-        </h2>
+        <div class="level mb-4">
+            <div class="level-left">
+                <h2 class="subtitle is-5 has-text-grey-light">
+                    Streets ({{ streets|length }})
+                </h2>
+            </div>
+            <div class="level-right">
+                <button
+                    onclick="openStreetModal(null)"
+                    class="button is-primary"
+                >
+                    <span class="icon is-small">
+                        <i class="fas fa-plus"></i>
+                    </span>
+                    <span>Add Street</span>
+                </button>
+            </div>
+        </div>
 
         {% if streets %}
         <div class="table-container">
@@ -214,19 +128,11 @@
                         <td>
                             <div class="buttons are-small">
                                 <button
-                                    onclick="editStreetInForm('{{ street.id }}')"
+                                    onclick="openStreetModal('{{ street.id }}')"
                                     class="button is-link is-small"
                                 >
                                     Edit
                                 </button>
-                                {% if street.is_default_street %}
-                                <button
-                                    onclick="editContent('{{ street.id }}')"
-                                    class="button is-link is-small"
-                                >
-                                    {% if street.street_content %}Edit Content{% else %}Add Content{% endif %}
-                                </button>
-                                {% endif %}
                                 {% if has_default_dictionary and not is_current_default %}
                                 {% if street.mapped_to_default_street %}
                                     {% set mapped_prefix = '' if not street.mapped_to_default_street.prefix or street.mapped_to_default_street.prefix == '-' else street.mapped_to_default_street.prefix + ' ' %}
@@ -333,55 +239,88 @@
 </div>
 {% endif %}
 
-<!-- Content Edit Modal -->
-<div id="contentModal" class="modal">
-    <div class="modal-background" onclick="closeContentModal()"></div>
+<!-- Street Edit/Add Modal -->
+<div id="streetModal" class="modal">
+    <div class="modal-background" onclick="closeStreetModal()"></div>
     <div class="modal-content">
         <div class="box">
-            <h2 id="modalTitle" class="subtitle is-5">Add Street Content</h2>
-            <form id="contentForm">
-                <input type="hidden" id="contentStreetId">
+            <h2 id="streetModalTitle" class="subtitle is-5">Add New Street</h2>
+
+            <!-- Status Message Area -->
+            <div id="streetModalStatus" class="notification" style="display: none; margin-bottom: 1rem;">
+                <button class="delete" onclick="clearStreetModalStatus()"></button>
+                <p id="streetModalStatusMessage"></p>
+            </div>
+
+            <form id="streetForm">
+                <input type="hidden" id="streetId">
+                <input type="hidden" id="isDefaultStreet" value="false">
+
+                <!-- Basic Fields (always visible) -->
+                <div class="columns">
+                    <div class="column">
+                        <div class="field">
+                            <label for="newPrefix" class="label">Prefix</label>
+                            <div class="control">
+                                <div class="select is-fullwidth">
+                                    <select id="newPrefix">
+                                        <option value="ul.">ul.</option>
+                                        <option value="pl.">pl.</option>
+                                        <option value="al.">al.</option>
+                                        <option value="-">-</option>
+                                        <option value="skwer">skwer</option>
+                                        <option value="wiadukt">wiadukt</option>
+                                        <option value="zaułek">zaułek</option>
+                                        <option value="os.">os.</option>
+                                        <option value="park">park</option>
+                                        <option value="rondo">rondo</option>
+                                        <option value="tunel">tunel</option>
+                                        <option value="most">most</option>
+                                        <option value="rynek">rynek</option>
+                                        <option value="droga">droga</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="column">
+                        <div class="field">
+                            <label for="newStreetName" class="label">Street Name *</label>
+                            <div class="control">
+                                <input
+                                    type="text"
+                                    id="newStreetName"
+                                    placeholder="Street name"
+                                    required
+                                    class="input"
+                                >
+                            </div>
+                        </div>
+                    </div>
+                    <div class="column">
+                        <div class="field">
+                            <label for="newDistrict" class="label">District</label>
+                            <div class="control">
+                                <input
+                                    type="text"
+                                    id="newDistrict"
+                                    placeholder="e.g., Grunwald"
+                                    class="input"
+                                >
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
                 <div class="columns">
                     <div class="column">
                         <div class="field">
-                            <label for="contentLatitude" class="label">Latitude</label>
-                            <div class="control">
-                                <input
-                                    type="number"
-                                    step="any"
-                                    id="contentLatitude"
-                                    placeholder="e.g. 52.4064"
-                                    class="input"
-                                >
-                            </div>
-                        </div>
-                    </div>
-                    <div class="column">
-                        <div class="field">
-                            <label for="contentLongitude" class="label">Longitude</label>
-                            <div class="control">
-                                <input
-                                    type="number"
-                                    step="any"
-                                    id="contentLongitude"
-                                    placeholder="e.g. 16.9252"
-                                    class="input"
-                                >
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="columns">
-                    <div class="column">
-                        <div class="field">
-                            <label for="contentDistrict" class="label">District</label>
+                            <label for="newVariants" class="label">Variants</label>
                             <div class="control">
                                 <input
                                     type="text"
-                                    id="contentDistrict"
-                                    placeholder="District name (optional)"
+                                    id="newVariants"
+                                    placeholder="Comma-separated variants (optional)"
                                     class="input"
                                 >
                             </div>
@@ -389,12 +328,12 @@
                     </div>
                     <div class="column">
                         <div class="field">
-                            <label for="contentPostalCode" class="label">Postal Code</label>
+                            <label for="newMisspellings" class="label">Misspellings</label>
                             <div class="control">
                                 <input
                                     type="text"
-                                    id="contentPostalCode"
-                                    placeholder="Postal code (optional)"
+                                    id="newMisspellings"
+                                    placeholder="Comma-separated misspellings (optional)"
                                     class="input"
                                 >
                             </div>
@@ -402,43 +341,115 @@
                     </div>
                 </div>
 
-                <div class="field">
-                    <label for="contentExternalLinks" class="label">External Links</label>
-                    <div class="control">
-                        <input
-                            type="text"
-                            id="contentExternalLinks"
-                            placeholder="Comma-separated URLs (optional)"
-                            class="input"
-                        >
+                <!-- Extended Fields (only for default streets) -->
+                <div id="defaultStreetFields" style="display: none;">
+                    <hr class="my-4">
+                    <h3 class="subtitle is-6 mb-4">Additional Information (Default Streets)</h3>
+
+                    <div class="columns">
+                        <div class="column">
+                            <div class="field">
+                                <label for="contentLatitude" class="label">Latitude</label>
+                                <div class="control">
+                                    <input
+                                        type="number"
+                                        step="any"
+                                        id="contentLatitude"
+                                        placeholder="e.g. 52.4064"
+                                        class="input"
+                                    >
+                                </div>
+                            </div>
+                        </div>
+                        <div class="column">
+                            <div class="field">
+                                <label for="contentLongitude" class="label">Longitude</label>
+                                <div class="control">
+                                    <input
+                                        type="number"
+                                        step="any"
+                                        id="contentLongitude"
+                                        placeholder="e.g. 16.9252"
+                                        class="input"
+                                    >
+                                </div>
+                            </div>
+                        </div>
+                        <div class="column is-narrow">
+                            <div class="field">
+                                <label class="label">&nbsp;</label>
+                                <div class="control">
+                                    <button
+                                        type="button"
+                                        id="enrichGeoButton"
+                                        onclick="enrichStreetGeo()"
+                                        class="button is-info"
+                                        title="Enrich with geolocation from OpenStreetMap"
+                                    >
+                                        <span class="icon is-small">
+                                            <i class="fas fa-map-marker-alt"></i>
+                                        </span>
+                                        <span>Enrich</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <p class="help">e.g. https://wikipedia.org/..., https://openstreetmap.org/...</p>
+
+                    <div class="columns">
+                        <div class="column">
+                            <div class="field">
+                                <label for="contentPostalCode" class="label">Postal Code</label>
+                                <div class="control">
+                                    <input
+                                        type="text"
+                                        id="contentPostalCode"
+                                        placeholder="Postal code (optional)"
+                                        class="input"
+                                    >
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="field">
+                        <label for="contentExternalLinks" class="label">External Links</label>
+                        <div class="control">
+                            <input
+                                type="text"
+                                id="contentExternalLinks"
+                                placeholder="Comma-separated URLs (optional)"
+                                class="input"
+                            >
+                        </div>
+                        <p class="help">e.g. https://wikipedia.org/..., https://openstreetmap.org/...</p>
+                    </div>
+
+                    <div class="field">
+                        <label for="contentHistoricalInfo" class="label">Historical Info</label>
+                        <div class="control">
+                            <textarea
+                                id="contentHistoricalInfo"
+                                placeholder="Additional historical information (optional)"
+                                class="textarea"
+                                rows="3"
+                            ></textarea>
+                        </div>
+                    </div>
                 </div>
 
-                <div class="field">
-                    <label for="contentHistoricalInfo" class="label">Historical Info</label>
+                <div class="field is-grouped is-grouped-right mt-4">
                     <div class="control">
-                        <textarea
-                            id="contentHistoricalInfo"
-                            placeholder="Additional historical information (optional)"
-                            class="textarea"
-                            rows="3"
-                        ></textarea>
-                    </div>
-                </div>
-
-                <div class="field is-grouped is-grouped-right">
-                    <div class="control">
-                        <button type="button" class="button" onclick="closeContentModal()">Cancel</button>
+                        <button type="button" class="button" onclick="closeStreetModal()">Cancel</button>
                     </div>
                     <div class="control">
-                        <button type="submit" class="button is-primary">Save Content</button>
+                        <button type="submit" class="button is-primary" id="submitButton">Add Street</button>
                     </div>
                 </div>
             </form>
         </div>
     </div>
-    <button class="modal-close is-large" aria-label="close" onclick="closeContentModal()"></button>
+    <button class="modal-close is-large" aria-label="close" onclick="closeStreetModal()"></button>
 </div>
 
 {% endblock %}

@@ -7,6 +7,8 @@ from flask_login import current_user, login_required
 
 from app import db
 from app.models.street import Street
+from app.models.street_content import StreetContent
+from app.services.geocoding_service import GeocodingService
 
 bp = Blueprint("api", __name__, url_prefix="/api")
 
@@ -228,3 +230,67 @@ def unmap_street_from_default(street_id):
     db.session.commit()
 
     return jsonify({"message": "Street mapping removed successfully."}), 200
+
+
+@bp.route("/streets/geolocations/<int:street_id>", methods=["POST"])
+@login_required
+def enrich_street_geolocation(street_id):
+    """Enrich a single default street with geolocation data."""
+    street = Street.query.get_or_404(street_id)
+
+    # Verify street belongs to current user
+    if street.user_id != current_user.id:
+        return jsonify({"error": "Unauthorized"}), 403
+
+    # Verify street is a default street
+    if not street.is_default_street:
+        return jsonify({"error": "Street is not a default street."}), 400
+
+    # Check if street already has geolocation
+    if street.street_content and street.street_content.latitude and street.street_content.longitude:
+        return jsonify(
+            {
+                "success": False,
+                "message": "Street already has geolocation data.",
+                "latitude": street.street_content.latitude,
+                "longitude": street.street_content.longitude,
+            }
+        ), 200
+
+    # Geocode the street
+    geocoding_service = GeocodingService()
+    result = geocoding_service.geocode_street(street.main_name_cs, street.city, street.prefix)
+
+    if not result:
+        return jsonify(
+            {
+                "success": False,
+                "message": "Could not find geolocation for this street.",
+            }
+        ), 404
+
+    # Create or update street content
+    if street.street_content:
+        street_content = street.street_content
+        street_content.latitude = result["latitude"]
+        street_content.longitude = result["longitude"]
+        street_content.updated_by = current_user.id
+    else:
+        street_content = StreetContent(
+            street_id=street.id,
+            latitude=result["latitude"],
+            longitude=result["longitude"],
+            updated_by=current_user.id,
+        )
+        db.session.add(street_content)
+
+    db.session.commit()
+
+    return jsonify(
+        {
+            "success": True,
+            "latitude": result["latitude"],
+            "longitude": result["longitude"],
+            "message": "Geolocation enriched successfully.",
+        }
+    ), 200
