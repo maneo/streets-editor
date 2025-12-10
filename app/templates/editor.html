@@ -2,6 +2,73 @@
 
 {% block title %}Edit Streets - {{ city }} {{ decade }}{% endblock %}
 
+{% block head %}
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+     crossorigin=""/>
+<style>
+    /* Map Preview Styling */
+    #mapPreviewSection {
+        margin-top: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    #mapPreviewSection .box {
+        border: 1px solid #dbdbdb;
+        border-radius: 6px;
+        box-shadow: 0 0.5em 1em -0.125em rgba(10, 10, 10, 0.1);
+        transition: box-shadow 0.2s ease;
+    }
+
+    #mapPreviewSection .box:hover {
+        box-shadow: 0 0.5em 1em -0.125em rgba(10, 10, 10, 0.2);
+    }
+
+    #mapPreviewSection .has-background-light:hover {
+        background-color: #f0f0f0 !important;
+    }
+
+    #mapPreviewContainer {
+        transition: all 0.3s ease-in-out;
+        overflow: hidden;
+    }
+
+    #mapPreview {
+        border-top: 1px solid #dbdbdb;
+    }
+
+    #mapToggleIcon {
+        transition: transform 0.3s ease;
+    }
+
+    /* Ensure Leaflet map renders properly */
+    .leaflet-container {
+        font-family: inherit;
+    }
+
+    .leaflet-popup-content-wrapper {
+        border-radius: 6px;
+    }
+
+    /* Animation for map section */
+    @keyframes slideDown {
+        from {
+            opacity: 0;
+            max-height: 0;
+        }
+        to {
+            opacity: 1;
+            max-height: 400px;
+        }
+    }
+
+    #mapPreviewContainer[style*="display: block"] {
+        animation: slideDown 0.3s ease-in-out;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container" style="max-width: 72rem;">
     <div class="level mb-6">
@@ -396,6 +463,40 @@
                         </div>
                     </div>
 
+                    <!-- Map Preview Section (Collapsible) -->
+                    <div id="mapPreviewSection" class="field" style="display: none;">
+                        <div class="box" style="padding: 0; overflow: hidden;">
+                            <div
+                                class="has-background-light p-3"
+                                style="cursor: pointer; user-select: none;"
+                                onclick="toggleMapSection()"
+                            >
+                                <div class="level is-mobile mb-0">
+                                    <div class="level-left">
+                                        <div class="level-item">
+                                            <span class="icon-text">
+                                                <span class="icon has-text-info">
+                                                    <i class="fas fa-map"></i>
+                                                </span>
+                                                <span class="has-text-weight-semibold">Map Preview</span>
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div class="level-right">
+                                        <div class="level-item">
+                                            <span class="icon has-text-grey" id="mapToggleIcon">
+                                                <i class="fas fa-chevron-down"></i>
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div id="mapPreviewContainer" style="display: none;">
+                                <div id="mapPreview" style="height: 350px; width: 100%;"></div>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="columns">
                         <div class="column">
                             <div class="field">
@@ -455,6 +556,10 @@
 {% endblock %}
 
 {% block scripts %}
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+     crossorigin=""></script>
 <script src="{{ url_for('static', filename='js/editor.js') }}"></script>
 <script>
     const CITY = "{{ city }}";

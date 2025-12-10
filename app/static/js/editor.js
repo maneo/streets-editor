@@ -1,5 +1,166 @@
 // Editor JavaScript for managing streets
 
+// Map management globals
+let streetMap = null;
+let streetMapMarker = null;
+let isMapExpanded = false;
+
+// Initialize Leaflet map
+function initializeMap(lat, lng, streetName = '') {
+    // Clean up existing map if it exists
+    if (streetMap) {
+        streetMap.remove();
+        streetMap = null;
+        streetMapMarker = null;
+    }
+
+    // Create map instance
+    try {
+        streetMap = L.map('mapPreview').setView([lat, lng], 15);
+
+        // Add OpenStreetMap tile layer
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 19
+        }).addTo(streetMap);
+
+        // Add marker with popup
+        streetMapMarker = L.marker([lat, lng]).addTo(streetMap);
+        if (streetName) {
+            streetMapMarker.bindPopup(streetName).openPopup();
+        }
+
+        return true;
+    } catch (error) {
+        console.error('Error initializing map:', error);
+        return false;
+    }
+}
+
+// Update map location and marker
+function updateMapLocation(lat, lng, streetName = '') {
+    if (!lat || !lng || isNaN(lat) || isNaN(lng)) {
+        hideMapPreview();
+        return false;
+    }
+
+    const latitude = parseFloat(lat);
+    const longitude = parseFloat(lng);
+
+    // Validate coordinates range
+    if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+        console.warn('Invalid coordinates range');
+        hideMapPreview();
+        return false;
+    }
+
+    // Show map section
+    showMapPreview();
+
+    // If map doesn't exist or container is hidden, initialize it
+    if (!streetMap || !isMapExpanded) {
+        // If not expanded, expand it first
+        if (!isMapExpanded) {
+            toggleMapSection();
+        }
+        // Wait a bit for the container to be visible, then initialize
+        setTimeout(() => {
+            initializeMap(latitude, longitude, streetName);
+        }, 100);
+    } else {
+        // Update existing map
+        streetMap.setView([latitude, longitude], 15);
+
+        // Update marker
+        if (streetMapMarker) {
+            streetMapMarker.setLatLng([latitude, longitude]);
+            if (streetName) {
+                streetMapMarker.bindPopup(streetName).openPopup();
+            }
+        } else {
+            streetMapMarker = L.marker([latitude, longitude]).addTo(streetMap);
+            if (streetName) {
+                streetMapMarker.bindPopup(streetName).openPopup();
+            }
+        }
+    }
+
+    return true;
+}
+
+// Show map preview section
+function showMapPreview() {
+    const mapSection = document.getElementById('mapPreviewSection');
+    if (mapSection) {
+        mapSection.style.display = 'block';
+    }
+}
+
+// Hide map preview section
+function hideMapPreview() {
+    const mapSection = document.getElementById('mapPreviewSection');
+    const mapContainer = document.getElementById('mapPreviewContainer');
+
+    if (mapSection) {
+        mapSection.style.display = 'none';
+    }
+
+    if (mapContainer) {
+        mapContainer.style.display = 'none';
+        isMapExpanded = false;
+    }
+
+    // Clean up map
+    if (streetMap) {
+        streetMap.remove();
+        streetMap = null;
+        streetMapMarker = null;
+    }
+
+    // Reset toggle icon
+    const toggleIcon = document.getElementById('mapToggleIcon');
+    if (toggleIcon) {
+        toggleIcon.innerHTML = '<i class="fas fa-chevron-down"></i>';
+    }
+}
+
+// Toggle map section expand/collapse
+function toggleMapSection() {
+    const mapContainer = document.getElementById('mapPreviewContainer');
+    const toggleIcon = document.getElementById('mapToggleIcon');
+
+    if (!mapContainer || !toggleIcon) return;
+
+    isMapExpanded = !isMapExpanded;
+
+    if (isMapExpanded) {
+        mapContainer.style.display = 'block';
+        toggleIcon.innerHTML = '<i class="fas fa-chevron-up"></i>';
+
+        // Get current coordinates
+        const lat = document.getElementById('contentLatitude').value;
+        const lng = document.getElementById('contentLongitude').value;
+        const streetName = document.getElementById('newStreetName').value;
+
+        // Initialize map with current coordinates
+        if (lat && lng) {
+            setTimeout(() => {
+                initializeMap(parseFloat(lat), parseFloat(lng), streetName);
+            }, 100);
+        }
+    } else {
+        mapContainer.style.display = 'none';
+        toggleIcon.innerHTML = '<i class="fas fa-chevron-down"></i>';
+
+        // Clean up map when collapsed
+        if (streetMap) {
+            streetMap.remove();
+            streetMap = null;
+            streetMapMarker = null;
+        }
+    }
+}
+
 // Open street modal for adding or editing
 async function openStreetModal(streetId) {
     const modal = document.getElementById('streetModal');
@@ -75,6 +236,14 @@ async function openStreetModal(streetId) {
                     document.getElementById('contentExternalLinks').value = linksStr;
 
                     document.getElementById('contentHistoricalInfo').value = content.historical_info || '';
+
+                    // Check if coordinates exist and update map
+                    if (content.latitude && content.longitude) {
+                        const streetName = streetData.prefix && streetData.prefix !== '-'
+                            ? `${streetData.prefix} ${streetData.main_name_cs}`
+                            : streetData.main_name_cs;
+                        updateMapLocation(content.latitude, content.longitude, streetName);
+                    }
                 }
             } catch (error) {
                 console.error('Error loading street content:', error);
@@ -100,6 +269,9 @@ function closeStreetModal() {
     document.getElementById('streetId').value = '';
     document.getElementById('isDefaultStreet').value = 'false';
     clearStreetModalStatus();
+
+    // Clean up map
+    hideMapPreview();
 }
 
 
@@ -415,6 +587,12 @@ async function enrichStreetGeo() {
             document.getElementById('contentLatitude').value = data.latitude;
             document.getElementById('contentLongitude').value = data.longitude;
 
+            // Update map with new coordinates
+            const streetName = document.getElementById('newStreetName').value;
+            const prefix = document.getElementById('newPrefix').value;
+            const fullStreetName = prefix && prefix !== '-' ? `${prefix} ${streetName}` : streetName;
+            updateMapLocation(data.latitude, data.longitude, fullStreetName);
+
             // Show success message
             showStreetModalStatus(
                 `Geolocation enriched successfully! Latitude: ${data.latitude}, Longitude: ${data.longitude}`,
@@ -585,4 +763,34 @@ if (streetForm) {
             showStreetModalStatus(`An error occurred while ${isEditing ? 'updating' : 'adding'} the street.`, 'error');
         }
     });
+}
+
+// Add event listeners for coordinate input fields to update map on manual changes
+const latitudeInput = document.getElementById('contentLatitude');
+const longitudeInput = document.getElementById('contentLongitude');
+
+if (latitudeInput && longitudeInput) {
+    // Debounce function to avoid too many updates while typing
+    let coordinateUpdateTimeout = null;
+
+    const handleCoordinateChange = () => {
+        clearTimeout(coordinateUpdateTimeout);
+        coordinateUpdateTimeout = setTimeout(() => {
+            const lat = latitudeInput.value.trim();
+            const lng = longitudeInput.value.trim();
+
+            if (lat && lng) {
+                const streetName = document.getElementById('newStreetName').value;
+                const prefix = document.getElementById('newPrefix').value;
+                const fullStreetName = prefix && prefix !== '-' ? `${prefix} ${streetName}` : streetName;
+                updateMapLocation(lat, lng, fullStreetName);
+            } else {
+                // If either coordinate is empty, hide the map
+                hideMapPreview();
+            }
+        }, 500); // Wait 500ms after user stops typing
+    };
+
+    latitudeInput.addEventListener('input', handleCoordinateChange);
+    longitudeInput.addEventListener('input', handleCoordinateChange);
 }
