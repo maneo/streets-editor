@@ -23,6 +23,14 @@ def allowed_csv_file(filename):
     )
 
 
+def allowed_json_file(filename):
+    """Check if JSON extension is allowed."""
+    return (
+        "." in filename
+        and filename.rsplit(".", 1)[1].lower() in current_app.config["ALLOWED_JSON_EXTENSIONS"]
+    )
+
+
 def validate_file(file):
     """
     Validate uploaded file.
@@ -79,6 +87,44 @@ def validate_csv_file(file):
     max_size = current_app.config["MAX_CONTENT_LENGTH"]
     if size > max_size:
         return f"File size exceeds maximum limit of {max_size / (1024 * 1024):.0f} MB."
+
+    return None
+
+
+def validate_json_file(file):
+    """
+    Validate uploaded JSON file.
+    Returns error message if invalid, None if valid.
+    """
+    if not file:
+        return "No file provided."
+
+    if file.filename == "":
+        return "No file selected."
+
+    if not allowed_json_file(file.filename):
+        return "Invalid file type. Only JSON files are allowed."
+
+    # Check file size (reuse MAX_CONTENT_LENGTH)
+    file.seek(0, os.SEEK_END)
+    size = file.tell()
+    file.seek(0)
+
+    max_size = current_app.config["MAX_CONTENT_LENGTH"]
+    if size > max_size:
+        return f"File size exceeds maximum limit of {max_size / (1024 * 1024):.0f} MB."
+
+    # Basic JSON validation
+    try:
+        import json
+
+        content = file.read()
+        json.loads(content)
+        file.seek(0)  # Reset after validation
+    except json.JSONDecodeError as e:
+        return f"Invalid JSON format: {str(e)}"
+    except Exception as e:
+        return f"Error reading JSON file: {str(e)}"
 
     return None
 

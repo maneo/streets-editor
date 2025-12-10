@@ -34,6 +34,7 @@ class Config:
     UPLOAD_FOLDER = os.environ.get("UPLOAD_FOLDER", "app/static/uploads")
     ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg"}
     ALLOWED_CSV_EXTENSIONS = {"csv"}
+    ALLOWED_JSON_EXTENSIONS = {"json"}
     OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
     OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1/chat/completions"
 

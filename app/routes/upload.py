@@ -11,7 +11,13 @@ from app.models.source_maps import SourceMaps
 from app.models.street import Street
 from app.services.ai_extraction import extract_streets_from_image
 from app.services.csv_import import import_streets_from_csv
-from app.services.file_handler import save_upload, validate_csv_file, validate_file
+from app.services.file_handler import (
+    save_upload,
+    validate_csv_file,
+    validate_file,
+    validate_json_file,
+)
+from app.services.json_import import import_streets_from_json
 
 bp = Blueprint("upload", __name__)
 
@@ -66,16 +72,27 @@ def upload_file():
     # Detect file type from extension
     filename_lower = file.filename.lower()
     is_csv = filename_lower.endswith(".csv")
+    is_json = filename_lower.endswith(".json")
     is_image = any(filename_lower.endswith(ext) for ext in [".jpg", ".jpeg", ".png"])
 
-    if not (is_csv or is_image):
-        flash("Invalid file type. Please upload a map image (JPG/PNG) or CSV file.", "error")
+    if not (is_csv or is_json or is_image):
+        flash("Invalid file type. Please upload a map image (JPG/PNG), CSV, or JSON file.", "error")
         return redirect(url_for("upload.index"))
 
-    upload_mode = "csv" if is_csv else "image"
+    if is_json:
+        upload_mode = "json"
+    elif is_csv:
+        upload_mode = "csv"
+    else:
+        upload_mode = "image"
 
     # Validate file type
-    validation_error = validate_file(file) if upload_mode == "image" else validate_csv_file(file)
+    if upload_mode == "image":
+        validation_error = validate_file(file)
+    elif upload_mode == "csv":
+        validation_error = validate_csv_file(file)
+    else:  # json
+        validation_error = validate_json_file(file)
 
     if validation_error:
         flash(validation_error, "error")
@@ -176,7 +193,7 @@ def upload_file():
                         )
                 else:
                     flash("Failed to save any streets due to database issues.", "error")
-        else:
+        elif upload_mode == "csv":
             summary = import_streets_from_csv(filepath, current_user.id, city, decade)
 
             # Upload CSV to GCS for audit
@@ -219,6 +236,43 @@ def upload_file():
                 preview = "; ".join(errors[:3])
                 more = "" if len(errors) <= 3 else f" (+{len(errors) - 3} more)"
                 flash(f"Some rows were skipped: {preview}{more}", "warning")
+        else:  # json
+            summary = import_streets_from_json(filepath, current_user.id, city, decade)
+
+            # Upload JSON to GCS for audit
+            try:
+                file.seek(0)
+                gcs_filename, gcs_url = current_app.gcs_service.upload_file(
+                    file, source_map.id, file.filename
+                )
+                source_map.gcs_filename = gcs_filename
+                source_map.gcs_url = gcs_url
+                source_map.streets_count = summary["inserted"]
+                db.session.commit()
+            except Exception as gcs_error:
+                current_app.logger.error(f"Failed to upload JSON to GCS: {gcs_error}")
+                flash(
+                    "Warning: JSON processed but could not be stored for verification.",
+                    "warning",
+                )
+
+            if summary["inserted"] > 0:
+                flash(
+                    f"JSON processed: {summary['inserted']} streets imported successfully.",
+                    "success",
+                )
+
+            if summary.get("skipped"):
+                flash(
+                    f"{summary['skipped']} streets skipped (duplicates).",
+                    "warning",
+                )
+
+            errors = summary.get("errors") or []
+            if errors:
+                preview = "; ".join(errors[:3])
+                more = "" if len(errors) <= 3 else f" (+{len(errors) - 3} more)"
+                flash(f"Some streets were skipped due to errors: {preview}{more}", "warning")
 
     except Exception as e:
         error_msg = str(e)

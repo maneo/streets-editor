@@ -19,6 +19,10 @@
             <strong>CSV format:</strong> <code>city,prefix,street_name_cs,district</code>.
             Unknown prefixes are kept as-is. City rows that don't match the chosen city are skipped.
         </p>
+        <p class="content is-small mb-4">
+            <strong>JSON format:</strong> Array of street objects with fields: <code>main_name</code>, <code>main_name_cs</code>, <code>variants</code>, <code>misspellings</code>, <code>prefix</code>, <code>display_name</code>.
+            Duplicate streets are skipped. All fields are required.
+        </p>
 
 
         <form method="POST" action="{{ url_for('upload.upload_file') }}" enctype="multipart/form-data">
@@ -51,7 +55,7 @@
             </div>
 
             <div class="field">
-                <label for="file" class="label">Upload File (Map Image or CSV, max 50 MB)</label>
+                <label for="file" class="label">Upload File (Map Image, CSV, or JSON, max 50 MB)</label>
                 <div class="control">
                     <div class="file has-name">
                         <label class="file-label">
@@ -59,7 +63,7 @@
                                 type="file"
                                 id="file"
                                 name="file"
-                                accept=".jpg,.jpeg,.png,.csv"
+                                accept=".jpg,.jpeg,.png,.csv,.json"
                                 required
                                 class="file-input"
                             >
@@ -77,7 +81,7 @@
                         </label>
                     </div>
                 </div>
-                <p class="help">Accepted formats: Map images (JPG, PNG) or CSV street lists</p>
+                <p class="help">Accepted formats: Map images (JPG, PNG), CSV street lists, or JSON dictionaries</p>
             </div>
 
             <div class="field">
