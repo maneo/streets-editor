@@ -12,7 +12,13 @@
     ],
     "prefix": "ul.",
     "display_name": "ul. 27 Grudnia",
-    "main_name_cs": "27 Grudnia"
+    "main_name_cs": "27 Grudnia",
+    "defaults-mapping": {
+      "city": "Poznań",
+      "decade": "1930-1939",
+      "main_name": "27 grudnia",
+      "street_id": 1111
+    }
   },
   {
     "main_name": "wolności",
@@ -20,6 +26,12 @@
     "misspellings": [],
     "prefix": "pl.",
     "display_name": "pl. Wolności",
-    "main_name_cs": "Wolności"
+    "main_name_cs": "Wolności",
+    "defaults-mapping": {
+      "city": "Poznań",
+      "decade": "1930-1939",
+      "main_name": "wolności",
+      "street_id": 1112
+    }
   }
 ]

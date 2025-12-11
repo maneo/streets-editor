@@ -241,9 +241,37 @@ def delete_dictionary(city, decade):
         return _json_error("Dictionary not found or no streets to delete.", 404)
 
     # Delete all streets (hard delete)
+    # 1. Find IDs of streets in this dictionary
+    streets_to_delete_ids = [
+        s.id
+        for s in Street.query.with_entities(Street.id).filter_by(
+            user_id=current_user.id, city=city, decade=decade
+        )
+    ]
+
+    if streets_to_delete_ids:
+        # 2. Nullify default_street_id references in other streets that point to these IDs
+        Street.query.filter(Street.default_street_id.in_(streets_to_delete_ids)).update(
+            {"default_street_id": None}, synchronize_session=False
+        )
+
+    # Delete associated street content for streets being removed
+    if streets_to_delete_ids:
+        from app.models.street_content import StreetContent
+
+        StreetContent.query.filter(StreetContent.street_id.in_(streets_to_delete_ids)).delete(
+            synchronize_session=False
+        )
+
+    # 3. Delete the streets themselves
     deleted_total = Street.query.filter_by(
         user_id=current_user.id, city=city, decade=decade
     ).delete(synchronize_session=False)
+
+    # In some database backends delete() may return 0 despite rows being deleted (e.g., when
+    # rowcount propagation is disabled). Fall back to previously counted active streets.
+    if deleted_total == 0:
+        deleted_total = streets_count
 
     # Delete associated source maps (hard delete)
     SourceMaps.query.filter_by(user_id=current_user.id, city=city, decade=decade).delete()

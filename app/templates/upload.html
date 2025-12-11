@@ -184,6 +184,26 @@
         <button class="modal-close is-large" aria-label="close"></button>
     </div>
 
+    <!-- Delete Success Modal -->
+    <div id="deleteSuccessModal" class="modal">
+        <div class="modal-background"></div>
+        <div class="modal-content">
+            <div class="box has-text-centered">
+                <div class="mb-4">
+                    <span class="icon is-large has-text-success">
+                        <i class="fas fa-check fa-3x"></i>
+                    </span>
+                </div>
+                <h3 class="title is-4 has-text-success">Dictionary Deleted</h3>
+                <p class="has-text-grey" id="deleteSuccessMessage"></p>
+                <div class="buttons is-centered mt-5">
+                    <button type="button" class="button is-success" id="closeDeleteSuccessBtn">OK</button>
+                </div>
+            </div>
+        </div>
+        <button class="modal-close is-large" aria-label="close"></button>
+    </div>
+
     {% if streets %}
     <div class="box">
         <h2 class="subtitle is-5 has-text-grey-light">Your Dictionaries</h2>
@@ -274,6 +294,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const deleteCitySpan = document.getElementById('deleteCity');
     const deleteDecadeSpan = document.getElementById('deleteDecade');
     const deleteStreetCountSpan = document.getElementById('deleteStreetCount');
+    const deleteSuccessModal = document.getElementById('deleteSuccessModal');
+    const deleteSuccessMessage = document.getElementById('deleteSuccessMessage');
+    const closeDeleteSuccessBtn = document.getElementById('closeDeleteSuccessBtn');
 
     // Variables to store current targets
     let currentSetDefaultCity = '';
@@ -281,6 +304,7 @@ document.addEventListener('DOMContentLoaded', function() {
     let currentSetDefaultButton = null;
     let currentDeleteCity = '';
     let currentDeleteDecade = '';
+    let currentDeleteDictionaryElement = null;
 
     if (form && overlay) {
         // Handle file input name display
@@ -399,6 +423,7 @@ document.addEventListener('DOMContentLoaded', function() {
     document.addEventListener('click', function(e) {
         if (e.target.closest('.delete-dictionary-btn')) {
             const btn = e.target.closest('.delete-dictionary-btn');
+            currentDeleteDictionaryElement = btn.closest('.level');
             currentDeleteCity = btn.dataset.city;
             currentDeleteDecade = btn.dataset.decade;
             const streetCount = btn.dataset.streetCount;
@@ -440,7 +465,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Handle confirm delete button
     if (confirmDeleteBtn) {
+        // Prevent multiple rapid clicks triggering duplicate requests/alerts
+        let isDeleting = false;
         confirmDeleteBtn.addEventListener('click', async function() {
+            if (isDeleting) {
+                return; // A delete operation is already in progress
+            }
+            isDeleting = true;
+
             try {
                 // Disable button to prevent double-clicks
                 confirmDeleteBtn.disabled = true;
@@ -455,9 +487,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 if (response.ok) {
                     const data = await response.json();
-                    // Show success message and reload page
-                    alert(`Dictionary deleted successfully! ${data.deleted_streets} streets removed.`);
-                    window.location.reload();
+                    // Remove the dictionary element from the DOM immediately so UI updates without reload
+                    if (currentDeleteDictionaryElement) {
+                        currentDeleteDictionaryElement.remove();
+                    }
+                    // Show success modal instead of alert
+                    deleteSuccessMessage.textContent = `Dictionary deleted successfully! ${data.deleted_streets} streets removed.`;
+                    deleteSuccessModal.classList.add('is-active');
                 } else {
                     const errorData = await response.json();
                     alert(`Error deleting dictionary: ${errorData.error || 'Unknown error'}`);
@@ -466,12 +502,41 @@ document.addEventListener('DOMContentLoaded', function() {
                     confirmDeleteBtn.innerHTML = '<span class="icon is-small"><i class="fas fa-trash"></i></span><span>Delete Dictionary</span>';
                 }
             } catch (error) {
+                // Reset flag so user can retry after network error
+                isDeleting = false;
                 alert('Network error occurred. Please try again.');
                 // Re-enable button
                 confirmDeleteBtn.disabled = false;
                 confirmDeleteBtn.innerHTML = '<span class="icon is-small"><i class="fas fa-trash"></i></span><span>Delete Dictionary</span>';
             }
         });
+    }
+
+    // Handle success modal close actions (OK button, background click, X)
+    if (closeDeleteSuccessBtn) {
+        closeDeleteSuccessBtn.addEventListener('click', function() {
+            deleteSuccessModal.classList.remove('is-active');
+            window.location.reload();
+        });
+    }
+
+    if (deleteSuccessModal) {
+        const successModalBackground = deleteSuccessModal.querySelector('.modal-background');
+        const successModalClose = deleteSuccessModal.querySelector('.modal-close');
+
+        if (successModalBackground) {
+            successModalBackground.addEventListener('click', function() {
+                deleteSuccessModal.classList.remove('is-active');
+                window.location.reload();
+            });
+        }
+
+        if (successModalClose) {
+            successModalClose.addEventListener('click', function() {
+                deleteSuccessModal.classList.remove('is-active');
+                window.location.reload();
+            });
+        }
     }
 });
 </script>
