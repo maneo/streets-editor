@@ -136,4 +136,17 @@ class Street(db.Model):
             "source": self.source,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            # defaults-mapping when linked to default street
+            **(
+                {
+                    "defaults-mapping": {
+                        "city": self.mapped_to_default_street.city,
+                        "decade": self.mapped_to_default_street.decade,
+                        "main_name": self.mapped_to_default_street.main_name,
+                        "street_id": self.mapped_to_default_street.id,
+                    }
+                }
+                if self.mapped_to_default_street
+                else {}
+            ),
         }

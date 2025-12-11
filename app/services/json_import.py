@@ -69,6 +69,31 @@ def _validate_street_object(street_obj: dict, index: int) -> str | None:
     if normalized_prefix not in ALLOWED_PREFIXES:
         return f"Street at index {index}: invalid prefix '{prefix}'. Allowed prefixes: {', '.join(sorted(ALLOWED_PREFIXES))}"
 
+    defaults_mapping = street_obj.get("defaults-mapping")
+    if defaults_mapping is not None:
+        if not isinstance(defaults_mapping, dict):
+            return f"Street at index {index}: defaults-mapping must be an object"
+
+        required_dm_fields = {"city", "decade", "main_name", "street_id"}
+        missing_dm = required_dm_fields - set(defaults_mapping.keys())
+        if missing_dm:
+            return f"Street at index {index}: defaults-mapping missing required fields: {', '.join(sorted(missing_dm))}"
+
+        # Field type validations
+        city_val = defaults_mapping.get("city")
+        decade_val = defaults_mapping.get("decade")
+        main_name_val = defaults_mapping.get("main_name")
+        street_id_val = defaults_mapping.get("street_id")
+
+        if not isinstance(city_val, str) or not city_val.strip():
+            return f"Street at index {index}: defaults-mapping.city must be a non-empty string"
+        if not isinstance(decade_val, str) or not decade_val.strip():
+            return f"Street at index {index}: defaults-mapping.decade must be a non-empty string"
+        if not isinstance(main_name_val, str) or not main_name_val.strip():
+            return f"Street at index {index}: defaults-mapping.main_name must be a non-empty string"
+        if not isinstance(street_id_val, int) or street_id_val <= 0:
+            return f"Street at index {index}: defaults-mapping.street_id must be a positive integer"
+
     return None
 
 
@@ -137,6 +162,30 @@ def import_streets_from_json(
         variants_json = json.dumps(street_obj["variants"], ensure_ascii=False)
         misspellings_json = json.dumps(street_obj["misspellings"], ensure_ascii=False)
 
+        defaults_mapping_obj = street_obj.get("defaults-mapping")
+        default_street_id_val: int | None = None
+        if defaults_mapping_obj:
+            # Strict verification: match by provided street_id AND city/decade/name
+            ref_street_id = defaults_mapping_obj["street_id"]
+            ref_city = defaults_mapping_obj["city"].strip()
+            ref_decade = defaults_mapping_obj["decade"].strip()
+            ref_name = defaults_mapping_obj["main_name"].strip().lower()
+
+            from sqlalchemy import and_
+
+            default_street_query = Street.query.filter(
+                and_(
+                    Street.id == ref_street_id,
+                    Street.is_default_street.is_(True),
+                    Street.city == ref_city,
+                    Street.decade == ref_decade,
+                    Street.main_name == ref_name,
+                )
+            ).first()
+
+            # Use ternary assignment per Ruff SIM108 recommendation
+            default_street_id_val = default_street_query.id if default_street_query else None
+
         # Check for duplicates
         existing = Street.query.filter_by(
             user_id=user_id, city=city, decade=decade, main_name=main_name_lower
@@ -158,6 +207,7 @@ def import_streets_from_json(
             misspellings=misspellings_json,
             source="json",
             is_default_street=False,
+            default_street_id=default_street_id_val,
         )
         db.session.add(street)
         inserted += 1

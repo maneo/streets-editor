@@ -36,7 +36,7 @@ def generate_json_export(streets, city, decade):
     dictionary = {"city": city, "decade": decade, "streets": []}
 
     for street in streets:
-        street_dict = street.to_dict()
+        street_dict = street.to_dict_export()
         dictionary["streets"].append(street_dict)
 
     return json.dumps(dictionary, indent=2, ensure_ascii=False)
