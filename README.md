@@ -2,6 +2,29 @@
 
 A web application for creating and editing street dictionaries from historical city maps using AI-powered extraction.
 
+## Basic workflow
+
+- Upload historical city map, use builtin ai features to extract streets/square/alleys names
+- Edit and add new streets names
+- Add name variants and misspellings
+- Export data in json, to use in your application
+
+## Advanced workflow
+
+Street names are changing over the course of decades. This app allows you to create street names dictionaries for time periods / decades. You can upload several historical city plans and prepare street names dictionaries for them. Several dictionaries can be also mapped to default dictionary ex. modern street names. When default dictionary is defined you can map streets from any other dictionary to default street. 
+
+Default dictionaries have additional metadata, you can assign (or automaticaly enrich) geolocation, links and text to it.
+
+In other words, advanced workflow can look as follows:
+- upload city plan for Poznań from 1938 (decade 1930 - 1939)
+- extract streets using AI, correct errors manually
+- upload list of modern Poznań streets names in form of csv file: city, prefix, street name, district
+- mark modern streets as default dictionary
+- enrich modern streets data with geolocation (one after another in web ui, or all at once in cli interface)
+- assign links and additional information to most interesting street names
+- map streets from 1930 - 1939 to modern names (one after another in web ui, or all at once in cli interface)
+- export both dictionaries for further use in Named Character Recognition engine or any other usecase.
+
 ## Features
 
 - Upload historical city map scans (JPG/PNG, up to 50 MB) or Text file with list of streets
