@@ -31,6 +31,29 @@ def _get_default_dictionary_for_city(city, user_id):
     return default_street.decade if default_street else None
 
 
+def _has_geolocation(street):
+    """Check if a street has geolocation data."""
+    return (
+        street.street_content is not None
+        and street.street_content.latitude is not None
+        and street.street_content.longitude is not None
+    )
+
+
+def _has_metadata(street):
+    """Check if a street has metadata (links or historical info)."""
+    if not street.street_content:
+        return False
+
+    has_links = (
+        street.street_content.external_links
+        and street.street_content.external_links not in ["", "[]"]
+    )
+    has_info = street.street_content.historical_info
+
+    return has_links or has_info
+
+
 @bp.route("/")
 @login_required
 def index():
@@ -325,6 +348,10 @@ def editor(city, decade):
     has_default_dictionary = default_street is not None
     is_current_default = default_street and default_street.decade == decade
 
+    # Pre-compute geolocation and metadata status for each street
+    street_geo_status = {street.id: _has_geolocation(street) for street in streets}
+    street_meta_status = {street.id: _has_metadata(street) for street in streets}
+
     return render_template(
         "editor.html",
         streets=streets,
@@ -333,4 +360,6 @@ def editor(city, decade):
         source_map=source_map,
         has_default_dictionary=has_default_dictionary,
         is_current_default=is_current_default,
+        street_geo_status=street_geo_status,
+        street_meta_status=street_meta_status,
     )

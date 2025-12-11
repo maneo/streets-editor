@@ -154,6 +154,10 @@
                         <th>Prefix</th>
                         <th>Street Name</th>
                         <th>District</th>
+                        {% if is_current_default %}
+                        <th style="width: 50px; text-align: center;">Geo</th>
+                        <th style="width: 50px; text-align: center;">Meta</th>
+                        {% endif %}
                         {% if not is_current_default %}
                         <th>Mapping</th>
                         {% endif %}
@@ -176,6 +180,22 @@
                             <span class="has-text-grey-dark">—</span>
                             {% endif %}
                         </td>
+                        {% if is_current_default %}
+                        <td style="text-align: center;">
+                            {% if street_geo_status.get(street.id) %}
+                            <span title="Has geolocation">✅</span>
+                            {% else %}
+                            <span title="No geolocation">❌</span>
+                            {% endif %}
+                        </td>
+                        <td style="text-align: center;">
+                            {% if street_meta_status.get(street.id) %}
+                            <span title="Has metadata (links or historical info)">✅</span>
+                            {% else %}
+                            <span title="No metadata">❌</span>
+                            {% endif %}
+                        </td>
+                        {% endif %}
                         {% if not is_current_default %}
                         <td>
                             {% if street.mapped_to_default_street %}
