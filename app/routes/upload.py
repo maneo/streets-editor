@@ -324,14 +324,19 @@ def upload_file():
 @login_required
 def editor(city, decade):
     """Street editor page for a specific city and decade."""
-    streets = (
+    page = request.args.get("page", 1, type=int)
+    per_page = 400
+
+    pagination = (
         Street.query.options(
             joinedload(Street.mapped_to_default_street), joinedload(Street.street_content)
         )
         .filter_by(user_id=current_user.id, city=city, decade=decade, is_rejected=False)
         .order_by(Street.main_name)
-        .all()
+        .paginate(page=page, per_page=per_page, error_out=False)
     )
+
+    streets = pagination.items
 
     # Get source map for this city/decade (if exists)
     source_map = (
@@ -362,4 +367,5 @@ def editor(city, decade):
         is_current_default=is_current_default,
         street_geo_status=street_geo_status,
         street_meta_status=street_meta_status,
+        pagination=pagination,
     )

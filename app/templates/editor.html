@@ -260,6 +260,64 @@
         </p>
         {% endif %}
     </div>
+
+    <!-- Pagination Controls -->
+    {% if pagination.pages > 1 %}
+    <div class="box mt-4">
+        <div class="level mb-4">
+            <div class="level-left">
+                <div class="level-item">
+                    <p class="has-text-grey">
+                        Showing {{ ((pagination.page - 1) * 400) + 1 }}-{{ [pagination.page * 400, pagination.total]|min }} of {{ pagination.total }} streets
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <nav class="pagination is-centered" role="navigation" aria-label="pagination">
+            {% if pagination.has_prev %}
+            <a href="{{ url_for('upload.editor', city=city, decade=decade, page=pagination.prev_num) }}" class="pagination-previous">Previous</a>
+            {% else %}
+            <a class="pagination-previous" disabled>Previous</a>
+            {% endif %}
+
+            {% if pagination.has_next %}
+            <a href="{{ url_for('upload.editor', city=city, decade=decade, page=pagination.next_num) }}" class="pagination-next">Next page</a>
+            {% else %}
+            <a class="pagination-next" disabled>Next page</a>
+            {% endif %}
+
+            <ul class="pagination-list">
+                {% set start_page = [1, pagination.page - 3]|max %}
+                {% set end_page = [pagination.pages, pagination.page + 3]|min %}
+
+                {% if start_page > 1 %}
+                <li><a href="{{ url_for('upload.editor', city=city, decade=decade, page=1) }}" class="pagination-link">1</a></li>
+                {% if start_page > 2 %}
+                <li><span class="pagination-ellipsis">&hellip;</span></li>
+                {% endif %}
+                {% endif %}
+
+                {% for page_num in range(start_page, end_page + 1) %}
+                <li>
+                    <a href="{{ url_for('upload.editor', city=city, decade=decade, page=page_num) }}"
+                       class="pagination-link {% if page_num == pagination.page %}is-current{% endif %}"
+                       {% if page_num == pagination.page %}aria-label="Page {{ page_num }}" aria-current="page"{% endif %}>
+                        {{ page_num }}
+                    </a>
+                </li>
+                {% endfor %}
+
+                {% if end_page < pagination.pages %}
+                {% if end_page < pagination.pages - 1 %}
+                <li><span class="pagination-ellipsis">&hellip;</span></li>
+                {% endif %}
+                <li><a href="{{ url_for('upload.editor', city=city, decade=decade, page=pagination.pages) }}" class="pagination-link">{{ pagination.pages }}</a></li>
+                {% endif %}
+            </ul>
+        </nav>
+    </div>
+    {% endif %}
 </div>
 
 <!-- Mapping Modal -->
@@ -584,5 +642,22 @@
 <script>
     const CITY = "{{ city }}";
     const DECADE = "{{ decade }}";
+
+    // Scroll to top of streets section when navigating pages
+    document.addEventListener('DOMContentLoaded', function() {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.has('page') && urlParams.get('page') !== '1') {
+            // Small delay to ensure page is fully rendered
+            setTimeout(function() {
+                const streetsSection = document.querySelector('.container');
+                if (streetsSection) {
+                    window.scrollTo({
+                        top: streetsSection.offsetTop - 20,
+                        behavior: 'smooth'
+                    });
+                }
+            }, 100);
+        }
+    });
 </script>
 {% endblock %}
