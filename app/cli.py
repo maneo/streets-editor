@@ -1,5 +1,7 @@
 """Flask CLI commands for development and testing."""
 
+import csv
+import json
 import os
 
 import click
@@ -11,6 +13,7 @@ from app.models.street import Street
 from app.models.street_content import StreetContent
 from app.models.user import User
 from app.services.ai_extraction import extract_streets_from_image
+from app.services.csv_import import _normalize_prefix
 from app.services.geocoding_service import GeocodingService
 from app.services.street_matching_service import StreetMatchingService
 
@@ -67,6 +70,282 @@ def _format_street_display_name(street):
     if street.prefix and street.prefix != "-":
         return f"{street.prefix} {street.main_name_cs}"
     return street.main_name_cs
+
+
+def _load_csv_streets(csv_file, city):
+    """Load and filter CSV rows by city.
+
+    Args:
+        csv_file: Path to CSV file
+        city: City name to filter by
+
+    Returns:
+        list: List of dicts with keys: prefix, street_name, link
+    """
+    csv_streets = []
+    try:
+        with open(csv_file, encoding="utf-8", newline="") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                row_city = row.get("city", "").strip()
+                if row_city.lower() == city.lower():
+                    prefix_raw = row.get("prefix", "").strip()
+                    street_name = row.get("street_name", "").strip()
+                    link = row.get("link", "").strip()
+
+                    if not street_name or not link:
+                        continue
+
+                    # Normalize prefix
+                    prefix, _ = _normalize_prefix(prefix_raw)
+
+                    csv_streets.append(
+                        {
+                            "prefix": prefix,
+                            "street_name": street_name.lower(),
+                            "link": link,
+                        }
+                    )
+    except FileNotFoundError:
+        raise click.ClickException(f"CSV file not found: {csv_file}") from None
+    except Exception as e:
+        raise click.ClickException(f"Error reading CSV file: {str(e)}") from e
+
+    return csv_streets
+
+
+def _extract_last_word(street_name):
+    """Extract last word from street name for fallback matching.
+
+    Args:
+        street_name: Street name string
+
+    Returns:
+        str: Last word of the street name, or empty string if no words
+    """
+    words = street_name.strip().split()
+    return words[-1] if words else ""
+
+
+def _match_csv_to_defaults(csv_streets, default_lookup):
+    """Match CSV streets to default streets using two-step matching.
+
+    Args:
+        csv_streets: List of dicts with prefix, street_name, link
+        default_lookup: Dictionary mapping (prefix, main_name) to Street objects
+
+    Returns:
+        tuple: (matches, not_matched, duplicates) where:
+            - matches is list of (csv_entry, default_street) tuples
+            - not_matched is list of unmatched csv_entry dicts
+            - duplicates is dict mapping default_street_id to list of csv_entry dicts
+    """
+    matches = []
+    not_matched = []
+    matched_default_ids = {}  # Track which default streets have been matched
+    duplicates = {}  # Track multiple CSV entries matching same default street
+
+    # Step 1: Exact matching
+    for csv_entry in csv_streets:
+        key = (csv_entry["prefix"], csv_entry["street_name"])
+        default_street = default_lookup.get(key)
+
+        if default_street:
+            if default_street.id in matched_default_ids:
+                # Duplicate match - add to duplicates dict
+                if default_street.id not in duplicates:
+                    duplicates[default_street.id] = [matched_default_ids[default_street.id]]
+                duplicates[default_street.id].append(csv_entry)
+            else:
+                matches.append((csv_entry, default_street))
+                matched_default_ids[default_street.id] = csv_entry
+
+    # Step 2: Fallback - last word matching for unmatched entries
+    unmatched_csv = [
+        csv_entry for csv_entry in csv_streets if not any(csv_entry == m[0] for m in matches)
+    ]
+
+    for csv_entry in unmatched_csv:
+        last_word = _extract_last_word(csv_entry["street_name"])
+        if last_word:
+            key = (csv_entry["prefix"], last_word)
+            default_street = default_lookup.get(key)
+
+            if default_street:
+                if default_street.id in matched_default_ids:
+                    # Duplicate match
+                    if default_street.id not in duplicates:
+                        duplicates[default_street.id] = [matched_default_ids[default_street.id]]
+                    duplicates[default_street.id].append(csv_entry)
+                else:
+                    matches.append((csv_entry, default_street))
+                    matched_default_ids[default_street.id] = csv_entry
+                continue
+
+        # Still no match
+        not_matched.append(csv_entry)
+
+    return matches, not_matched, duplicates
+
+
+def _add_link_to_street_content(street, link, user_id, dry_run=False):
+    """Add link to StreetContent.external_links.
+
+    Args:
+        street: Street model instance
+        link: URL string to add
+        user_id: User ID for updated_by field
+        dry_run: If True, don't save to database
+
+    Returns:
+        tuple: (success, message) where success is bool
+    """
+    # Check if StreetContent exists
+    street_content = street.street_content
+
+    if not street_content:
+        # Create new StreetContent
+        if not dry_run:
+            street_content = StreetContent(
+                street_id=street.id,
+                external_links=json.dumps([link]),
+                updated_by=user_id,
+            )
+            db.session.add(street_content)
+            db.session.commit()
+        return True, "created"
+
+    # Check if external_links already exists (not empty)
+    existing_links = (
+        json.loads(street_content.external_links) if street_content.external_links else []
+    )
+
+    if existing_links:
+        return False, "skipped (links already exist)"
+
+    # Add link
+    if not dry_run:
+        street_content.external_links = json.dumps([link])
+        street_content.updated_by = user_id
+        db.session.add(street_content)
+        db.session.commit()
+    return True, "added"
+
+
+def _add_links_to_street_content(street, links, user_id, dry_run=False):
+    """Add multiple links to StreetContent.external_links.
+
+    Args:
+        street: Street model instance
+        links: List of URL strings to add
+        user_id: User ID for updated_by field
+        dry_run: If True, don't save to database
+
+    Returns:
+        tuple: (success, message) where success is bool
+    """
+    # Check if StreetContent exists
+    street_content = street.street_content
+
+    if not street_content:
+        # Create new StreetContent with all links
+        if not dry_run:
+            street_content = StreetContent(
+                street_id=street.id,
+                external_links=json.dumps(links),
+                updated_by=user_id,
+            )
+            db.session.add(street_content)
+            db.session.commit()
+        return True, "created"
+
+    # Check if external_links already exists (not empty)
+    existing_links = (
+        json.loads(street_content.external_links) if street_content.external_links else []
+    )
+
+    if existing_links:
+        return False, "skipped (links already exist)"
+
+    # Add all links
+    if not dry_run:
+        street_content.external_links = json.dumps(links)
+        street_content.updated_by = user_id
+        db.session.add(street_content)
+        db.session.commit()
+    return True, "added"
+
+
+def _handle_duplicates(duplicates, default_lookup, dry_run):
+    """Handle duplicate matches interactively.
+
+    Args:
+        duplicates: Dict mapping default_street_id to list of csv_entry dicts
+        default_lookup: Dictionary mapping (prefix, main_name) to Street objects
+        dry_run: If True, don't save to database
+
+    Returns:
+        dict: Mapping of default_street_id to chosen csv_entry (or None if skipped)
+    """
+    if not duplicates:
+        return {}
+
+    click.echo()
+    click.echo("⚠️  Duplicate matches detected:")
+    click.echo()
+
+    chosen = {}
+
+    for default_id, csv_entries in duplicates.items():
+        # Find the default street
+        default_street = None
+        for street in default_lookup.values():
+            if street.id == default_id:
+                default_street = street
+                break
+
+        if not default_street:
+            continue
+
+        default_display = _format_street_display_name(default_street)
+        click.echo(f"  Default street: {default_display}")
+        click.echo("  Multiple CSV entries match this street:")
+        for idx, csv_entry in enumerate(csv_entries, 1):
+            csv_display = f"{csv_entry['prefix']} {csv_entry['street_name']}"
+            click.echo(f"    {idx}. {csv_display} -> {csv_entry['link']}")
+
+        if dry_run:
+            click.echo(f"  [DRY RUN] Would use first entry: {csv_entries[0]['link']}")
+            chosen[default_id] = csv_entries[0]
+        else:
+            # Interactive mode
+            while True:
+                choice = (
+                    click.prompt(
+                        f"  Choose action: (1-{len(csv_entries)} to use that link, "
+                        f"'a' to append all, 's' to skip)",
+                        default="1",
+                    )
+                    .strip()
+                    .lower()
+                )
+
+                if choice == "s":
+                    chosen[default_id] = None
+                    break
+                elif choice == "a":
+                    # Append all links
+                    chosen[default_id] = csv_entries
+                    break
+                elif choice.isdigit() and 1 <= int(choice) <= len(csv_entries):
+                    chosen[default_id] = csv_entries[int(choice) - 1]
+                    break
+                else:
+                    click.echo("  Invalid choice. Please try again.")
+
+        click.echo()
+
+    return chosen
 
 
 def register_cli_commands(app):
@@ -484,4 +763,343 @@ def register_cli_commands(app):
             else:
                 click.echo()
                 click.echo("  ✅ All mappings have been saved to the database!")
+            click.echo("=" * 60)
+
+    @app.cli.command("add-links-from-csv")
+    @click.option(
+        "--csv-file",
+        default="poznan_streets.csv",
+        help="Path to CSV file (default: poznan_streets.csv)",
+    )
+    @click.option("--city", required=True, help="City name")
+    @click.option("--user-id", type=int, help="User ID (defaults to first user)")
+    @click.option("--dry-run", is_flag=True, help="Perform matching without saving to database")
+    def add_links_from_csv(csv_file, city, user_id, dry_run):
+        """Add links from CSV to default streets' StreetContent.
+
+        This command loads streets from a CSV file, matches them to default
+        dictionary streets for a given city, and adds links to their
+        StreetContent.external_links.
+
+        Matching strategy:
+        1. Exact match by (prefix, street_name)
+        2. Fallback: match by (prefix, last_word_of_street_name)
+
+        CSV format: city, prefix, street_name, link
+
+        Usage:
+            flask add-links-from-csv --city "Poznań"
+            flask add-links-from-csv --city "Poznań" --csv-file poznan_streets.csv
+            flask add-links-from-csv --city "Poznań" --dry-run
+            flask add-links-from-csv --city "Poznań" --user-id 1
+        """
+        with app.app_context():
+            # Get user using utility function
+            user, error = _get_user_or_default(user_id)
+            if error:
+                click.echo(f"❌ {error}")
+                return
+
+            # Initialize street matching service
+            matching_service = StreetMatchingService(db.session)
+
+            # Get default streets lookup
+            default_lookup, default_streets = matching_service.get_default_streets_lookup(
+                user.id, city
+            )
+
+            if not default_streets:
+                click.echo(f"❌ No default streets found for city '{city}'.")
+                click.echo("   Please import default streets for this city first.")
+                return
+
+            click.echo("Adding links from CSV to default streets:")
+            click.echo(f"  CSV file: {csv_file}")
+            click.echo(f"  City: {city}")
+            click.echo(f"  User: {user.email}")
+            click.echo(f"  Mode: {'DRY RUN' if dry_run else 'LIVE UPDATE'}")
+            click.echo(f"  Default streets available: {len(default_streets)}")
+            click.echo()
+
+            # Load CSV streets
+            try:
+                csv_streets = _load_csv_streets(csv_file, city)
+            except click.ClickException as e:
+                click.echo(f"❌ {str(e)}")
+                return
+
+            if not csv_streets:
+                click.echo(f"❌ No streets found in CSV for city '{city}'.")
+                return
+
+            click.echo(f"Loaded {len(csv_streets)} streets from CSV.")
+            click.echo()
+
+            # Match CSV streets to default streets
+            matches, not_matched, duplicates = _match_csv_to_defaults(csv_streets, default_lookup)
+
+            click.echo(f"Found {len(matches)} matches ({len(not_matched)} not matched).")
+            if duplicates:
+                click.echo(f"Found {len(duplicates)} duplicate matches.")
+            click.echo()
+
+            # Handle duplicates interactively
+            duplicate_choices = {}
+            if duplicates:
+                duplicate_choices = _handle_duplicates(duplicates, default_lookup, dry_run)
+
+            # Process matches
+            links_added = 0
+            links_skipped = 0
+            links_created = 0
+
+            click.echo("Processing matches...")
+            click.echo()
+
+            for csv_entry, default_street in matches:
+                # Check if this match was in duplicates and user chose differently
+                if default_street.id in duplicate_choices:
+                    choice = duplicate_choices[default_street.id]
+                    if choice is None:
+                        # User chose to skip
+                        default_display = _format_street_display_name(default_street)
+                        csv_display = f"{csv_entry['prefix']} {csv_entry['street_name']}"
+                        click.echo(f"  ⊘ {csv_display} → {default_display} (skipped by user)")
+                        links_skipped += 1
+                        continue
+                    elif isinstance(choice, list):
+                        # User chose to append all - add all links at once
+                        all_links = [dup_entry["link"] for dup_entry in choice]
+                        success, message = _add_links_to_street_content(
+                            default_street, all_links, user.id, dry_run
+                        )
+                        if success:
+                            if message == "created":
+                                links_created += 1
+                            else:
+                                links_added += 1
+                            default_display = _format_street_display_name(default_street)
+                            click.echo(
+                                f"  ✅ {len(choice)} links added to {default_display} "
+                                f"({'DRY RUN' if dry_run else 'saved'})"
+                            )
+                        else:
+                            links_skipped += 1
+                            default_display = _format_street_display_name(default_street)
+                            click.echo(f"  ⊘ {default_display} ({message})")
+                        continue
+                    else:
+                        # User chose specific entry - use that instead
+                        csv_entry = choice
+
+                default_display = _format_street_display_name(default_street)
+                csv_display = f"{csv_entry['prefix']} {csv_entry['street_name']}"
+
+                success, message = _add_link_to_street_content(
+                    default_street, csv_entry["link"], user.id, dry_run
+                )
+
+                if success:
+                    if message == "created":
+                        links_created += 1
+                        click.echo(
+                            f"  ✅ {csv_display} → {default_display} "
+                            f"(created StreetContent, link added) {'[DRY RUN]' if dry_run else ''}"
+                        )
+                    else:
+                        links_added += 1
+                        click.echo(
+                            f"  ✅ {csv_display} → {default_display} "
+                            f"(link added) {'[DRY RUN]' if dry_run else ''}"
+                        )
+                else:
+                    links_skipped += 1
+                    click.echo(f"  ⊘ {csv_display} → {default_display} ({message})")
+
+            # Process duplicate choices that weren't in regular matches
+            for default_id, choice in duplicate_choices.items():
+                if default_id in [m[1].id for m in matches]:
+                    continue  # Already processed above
+
+                # Find default street
+                default_street = None
+                for street in default_lookup.values():
+                    if street.id == default_id:
+                        default_street = street
+                        break
+
+                if not default_street or choice is None:
+                    continue
+
+                if isinstance(choice, list):
+                    # User chose to append all - add all links at once
+                    all_links = [dup_entry["link"] for dup_entry in choice]
+                    success, message = _add_links_to_street_content(
+                        default_street, all_links, user.id, dry_run
+                    )
+                    if success:
+                        if message == "created":
+                            links_created += 1
+                        else:
+                            links_added += 1
+                    else:
+                        links_skipped += 1
+                else:
+                    success, message = _add_link_to_street_content(
+                        default_street, choice["link"], user.id, dry_run
+                    )
+                    if success:
+                        if message == "created":
+                            links_created += 1
+                        else:
+                            links_added += 1
+                    else:
+                        links_skipped += 1
+
+            # Show unmatched streets
+            if not_matched:
+                click.echo()
+                click.echo("Streets not matched:")
+                for csv_entry in not_matched[:20]:  # Show first 20
+                    csv_display = f"{csv_entry['prefix']} {csv_entry['street_name']}"
+                    click.echo(f"  ✗ {csv_display}")
+                if len(not_matched) > 20:
+                    click.echo(f"  ... and {len(not_matched) - 20} more")
+
+            # Show summary
+            click.echo()
+            click.echo("=" * 60)
+            click.echo("Summary:")
+            click.echo(f"  CSV streets processed: {len(csv_streets)}")
+            click.echo(f"  Matches found: {len(matches)}")
+            click.echo(f"  Links added: {links_added}")
+            click.echo(f"  StreetContent records created: {links_created}")
+            click.echo(f"  Links skipped (existing): {links_skipped}")
+            click.echo(f"  Not matched: {len(not_matched)}")
+            if duplicates:
+                click.echo(f"  Duplicate matches: {len(duplicates)}")
+            if dry_run:
+                click.echo()
+                click.echo("  ℹ️  This was a dry run. No changes were saved to the database.")
+                click.echo("  Run without --dry-run to save the links.")
+            else:
+                click.echo()
+                click.echo(
+                    f"  ✅ {links_added + links_created} links have been saved to the database!"
+                )
+            click.echo("=" * 60)
+
+    @app.cli.command("copy-districts-from-default")
+    @click.option("--city", required=True, help="City name")
+    @click.option("--decade", required=True, help="Decade (e.g. '1940-1949')")
+    @click.option("--user-id", type=int, help="User ID (defaults to first user)")
+    @click.option("--dry-run", is_flag=True, help="Perform copying without saving to database")
+    def copy_districts_from_default(city, decade, user_id, dry_run):
+        """Copy district information from default streets to mapped streets.
+
+        This command analyzes all streets in a given city/decade dictionary and
+        copies district information from their mapped default streets. Only streets
+        that currently have no district (None) will be updated.
+
+        Usage:
+            flask copy-districts-from-default --city "Poznań" --decade "1940-1949"
+            flask copy-districts-from-default --city "Poznań" --decade "1940-1949" --dry-run
+            flask copy-districts-from-default --city "Poznań" --decade "1940-1949" --user-id 1
+        """
+        with app.app_context():
+            # Get user using utility function
+            user, error = _get_user_or_default(user_id)
+            if error:
+                click.echo(f"❌ {error}")
+                return
+
+            click.echo("Copying districts from default dictionary:")
+            click.echo(f"  City: {city}")
+            click.echo(f"  Decade: {decade}")
+            click.echo(f"  User: {user.email}")
+            click.echo(f"  Mode: {'DRY RUN' if dry_run else 'LIVE UPDATE'}")
+            click.echo()
+
+            # Query streets for the given city/decade that:
+            # - Are NOT default streets (is_default_street=False)
+            # - Are NOT rejected (is_rejected=False)
+            # - Have a mapping to default street (default_street_id IS NOT NULL)
+            # - Currently have no district (district IS NULL)
+            streets = (
+                Street.query.filter_by(
+                    user_id=user.id,
+                    city=city,
+                    decade=decade,
+                    is_default_street=False,
+                    is_rejected=False,
+                )
+                .filter(Street.default_street_id.isnot(None))
+                .filter(Street.district.is_(None))
+                .order_by(Street.main_name)
+                .all()
+            )
+
+            if not streets:
+                click.echo(f"No streets found to process for {city} / {decade}.")
+                click.echo("   Streets must have a default_street_id mapping and no district.")
+                return
+
+            click.echo(f"Found {len(streets)} streets with mappings and no district.")
+            click.echo()
+
+            # Process each street
+            updated_count = 0
+            skipped_count = 0
+
+            for street in streets:
+                # Load the mapped default street
+                default_street = street.mapped_to_default_street
+
+                if not default_street:
+                    # This shouldn't happen if default_street_id is set, but handle it
+                    street_display = _format_street_display_name(street)
+                    click.echo(f"  ⚠️  {street_display} (default street not found)")
+                    skipped_count += 1
+                    continue
+
+                # Check if default street has a district
+                if not default_street.district:
+                    street_display = _format_street_display_name(street)
+                    default_display = _format_street_display_name(default_street)
+                    click.echo(
+                        f"  ⊘ {street_display} → {default_display} (default has no district)"
+                    )
+                    skipped_count += 1
+                    continue
+
+                # Copy district from default street
+                street_display = _format_street_display_name(street)
+                default_display = _format_street_display_name(default_street)
+
+                if not dry_run:
+                    street.district = default_street.district
+                    db.session.add(street)
+                    db.session.commit()
+
+                click.echo(
+                    f"  ✅ {street_display} → {default_display} "
+                    f"(district: {default_street.district}) "
+                    f"{'[DRY RUN]' if dry_run else ''}"
+                )
+                updated_count += 1
+
+            # Show summary
+            click.echo()
+            click.echo("=" * 60)
+            click.echo("Summary:")
+            click.echo(f"  Total streets processed: {len(streets)}")
+            click.echo(f"  Districts copied: {updated_count}")
+            click.echo(f"  Skipped (no district in default): {skipped_count}")
+            if dry_run:
+                click.echo()
+                click.echo("  ℹ️  This was a dry run. No changes were saved to the database.")
+                click.echo("  Run without --dry-run to save the districts.")
+            else:
+                click.echo()
+                click.echo(f"  ✅ {updated_count} districts have been saved to the database!")
             click.echo("=" * 60)
