@@ -36,18 +36,26 @@ def generate_json_export(streets, city, decade):
     dictionary = {"city": city, "decade": decade, "streets": []}
 
     for street in streets:
+        # Parse JSON strings to lists
+        variants = json.loads(street.variants) if street.variants else []
+        misspellings = json.loads(street.misspellings) if street.misspellings else []
+
+        # Compute display_name from prefix and main_name_cs
+        display_prefix = "" if not street.prefix or street.prefix == "-" else f"{street.prefix} "
+        display_name = f"{display_prefix}{street.main_name_cs}".strip()
+
         street_dict = {
             "main_name": street.main_name,
-            "variants": street.variants,
-            "misspellings": street.misspellings,
+            "variants": variants,
+            "misspellings": misspellings,
             "prefix": street.prefix,
-            "display_name": street.display_name,
+            "display_name": display_name,
             "main_name_cs": street.main_name_cs,
             "defaults-mapping": {
                 "city": city,
                 "decade": decade,
                 "main_name": street.main_name,
-                "street_id": street.street_id,
+                "street_id": street.id,
             },
         }
         dictionary["streets"].append(street_dict)

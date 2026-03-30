@@ -16,6 +16,7 @@
       "prefix": "ul.",
       "display_name": "ul. 27 Grudnia",
       "main_name_cs": "27 Grudnia",
+      "id": 1111,
       "defaults-mapping": {
         "city": "Poznań",
         "decade": "2020-2029",
@@ -30,6 +31,7 @@
       "prefix": "pl.",
       "display_name": "pl. Wolności",
       "main_name_cs": "Wolności",
+      "id": 1112,
       "defaults-mapping": {
         "city": "Poznań",
         "decade": "2020-2029",
