@@ -23,7 +23,7 @@ def generate_txt_export(streets):
 
 def generate_json_export(streets, city, decade):
     """
-    Generate JSON export according to the specified format.
+    Generate JSON export.
 
     Args:
         streets: List of Street model objects
@@ -47,8 +47,8 @@ def generate_json_export(streets, city, decade):
                 "city": city,
                 "decade": decade,
                 "main_name": street.main_name,
-                "street_id": street.street_id
-            }
+                "street_id": street.street_id,
+            },
         }
         dictionary["streets"].append(street_dict)
 
